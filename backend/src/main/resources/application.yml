@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: slack
+  
+  # 데이터베이스 설정 (PostgreSQL 실행 시 주석 해제)
+  # datasource:
+  #   url: jdbc:postgresql://localhost:5432/slack_db
+  #   username: slack_user
+  #   password: slack_pass
+  #   driver-class-name: org.postgresql.Driver
+  #
+  # jpa:
+  #   hibernate:
+  #     ddl-auto: validate
+  #   show-sql: true
+  #   properties:
+  #     hibernate:
+  #       format_sql: true
+  
+  # JPA 자동 구성 비활성화 (데이터베이스 없이 실행)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+server:
+  port: 8080
+
