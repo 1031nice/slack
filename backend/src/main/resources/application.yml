@@ -27,7 +27,9 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
-  show-actuator: false
+    disable-swagger-default-url: true
+    config-url: /api-docs/swagger-config
+    url: /api-docs
 
 server:
   port: 8080
