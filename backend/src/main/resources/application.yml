@@ -21,6 +21,14 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+  show-actuator: false
+
 server:
   port: 8080
 
