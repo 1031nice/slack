@@ -4,6 +4,7 @@ import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
+import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,7 +36,7 @@ public class WorkspaceService {
 
     public WorkspaceResponse getWorkspaceById(Long id) {
         Workspace workspace = workspaceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Workspace not found with id: " + id));
+                .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + id));
         return toResponse(workspace);
     }
 

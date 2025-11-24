@@ -1,6 +1,7 @@
 package com.slack.service;
 
 import com.slack.domain.user.User;
+import com.slack.exception.UserNotFoundException;
 import com.slack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,12 +33,12 @@ public class UserService {
 
     public User findByAuthUserId(String authUserId) {
         return userRepository.findByAuthUserId(authUserId)
-                .orElseThrow(() -> new RuntimeException("User not found with authUserId: " + authUserId));
+                .orElseThrow(() -> new UserNotFoundException("User not found with authUserId: " + authUserId));
     }
 
     public User findById(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
     }
 }
 

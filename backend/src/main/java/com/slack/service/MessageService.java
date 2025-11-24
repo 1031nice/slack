@@ -5,6 +5,8 @@ import com.slack.domain.message.Message;
 import com.slack.domain.user.User;
 import com.slack.dto.message.MessageCreateRequest;
 import com.slack.dto.message.MessageResponse;
+import com.slack.exception.ChannelNotFoundException;
+import com.slack.exception.MessageNotFoundException;
 import com.slack.repository.ChannelRepository;
 import com.slack.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +30,7 @@ public class MessageService {
     @Transactional
     public MessageResponse createMessage(Long channelId, MessageCreateRequest request) {
         Channel channel = channelRepository.findById(channelId)
-                .orElseThrow(() -> new RuntimeException("Channel not found with id: " + channelId));
+                .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + channelId));
         
         User user = userService.findById(request.getUserId());
         
@@ -45,7 +47,7 @@ public class MessageService {
 
     public MessageResponse getMessageById(Long id) {
         Message message = messageRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Message not found with id: " + id));
+                .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + id));
         return toResponse(message);
     }
 

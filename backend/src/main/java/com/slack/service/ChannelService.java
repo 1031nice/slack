@@ -4,6 +4,8 @@ import com.slack.domain.channel.Channel;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
+import com.slack.exception.ChannelNotFoundException;
+import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.repository.ChannelRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +26,7 @@ public class ChannelService {
     @Transactional
     public ChannelResponse createChannel(Long workspaceId, ChannelCreateRequest request) {
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new RuntimeException("Workspace not found with id: " + workspaceId));
+                .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + workspaceId));
         
         Channel channel = Channel.builder()
                 .workspace(workspace)
@@ -39,7 +41,7 @@ public class ChannelService {
 
     public ChannelResponse getChannelById(Long id) {
         Channel channel = channelRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Channel not found with id: " + id));
+                .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + id));
         return toResponse(channel);
     }
 
