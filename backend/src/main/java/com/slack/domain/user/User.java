@@ -24,14 +24,14 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "auth_user_id", nullable = false, unique = true)
+    private String authUserId;  // OAuth2 인증 시스템의 sub 값 (JWT의 sub 클레임)
+
     @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
     private String name;
-
-    @Column(nullable = false)
-    private String password;
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
     private List<WorkspaceMember> workspaceMembers = new ArrayList<>();
@@ -62,10 +62,10 @@ public class User {
     }
 
     @Builder
-    public User(String email, String name, String password) {
+    public User(String authUserId, String email, String name) {
+        this.authUserId = authUserId;
         this.email = email;
         this.name = name;
-        this.password = password;
     }
 }
 
