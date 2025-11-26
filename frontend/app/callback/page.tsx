@@ -39,8 +39,10 @@ export default function CallbackPage() {
         });
         
         setAuthToken(response.accessToken);
+        // 성공 시 홈 화면으로 리다이렉트
         router.push('/');
       } catch (err) {
+        console.error('Token exchange error:', err);
         if (err instanceof ApiError) {
           setError(err.message);
         } else {
@@ -57,7 +59,7 @@ export default function CallbackPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-center mb-6">Slack Clone</h1>
+          <h1 className="text-2xl font-bold text-center mb-6">Slack</h1>
           <p className="text-center text-gray-600">Completing authentication...</p>
         </div>
       </div>
@@ -67,7 +69,7 @@ export default function CallbackPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Slack Clone</h1>
+        <h1 className="text-2xl font-bold text-center mb-6">Slack</h1>
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
             {error}

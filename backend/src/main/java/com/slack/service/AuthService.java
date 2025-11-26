@@ -65,11 +65,16 @@ public class AuthService {
 
             throw new RuntimeException("Failed to get token from auth server");
         } catch (HttpClientErrorException e) {
-            log.error("Auth server error: {}", e.getResponseBodyAsString());
+            String responseBody = e.getResponseBodyAsString();
+            log.error("Auth server error: status={}, body={}, message={}", 
+                    e.getStatusCode(), responseBody, e.getMessage());
             if (e.getStatusCode() == HttpStatus.UNAUTHORIZED || e.getStatusCode() == HttpStatus.BAD_REQUEST) {
-                throw new RuntimeException("Invalid authorization code");
+                throw new RuntimeException("Invalid authorization code: " + (responseBody != null ? responseBody : e.getMessage()));
             }
-            throw new RuntimeException("Authentication failed: " + e.getMessage());
+            throw new RuntimeException("Authentication failed: " + (responseBody != null ? responseBody : e.getMessage()));
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            log.error("Network error connecting to auth server: {}", e.getMessage());
+            throw new RuntimeException("Cannot connect to authentication server: " + e.getMessage());
         } catch (Exception e) {
             log.error("Error during token exchange", e);
             throw new RuntimeException("Authentication failed: " + e.getMessage());

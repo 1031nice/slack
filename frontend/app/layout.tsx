@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Slack App',
-  description: 'Slack clone application for learning',
+  description: 'Slack application for learning',
 }
 
 export default function RootLayout({

@@ -46,12 +46,12 @@ export function useWebSocket(token: string | null) {
     []
   );
 
-  const sendMessage = useCallback((channelId: number, content: string) => {
+  const sendMessage = useCallback((channelId: number, content: string): boolean => {
     if (!clientRef.current) {
       console.error('WebSocket client not initialized');
-      return;
+      return false;
     }
-    clientRef.current.sendMessage(channelId, content);
+    return clientRef.current.sendMessage(channelId, content);
   }, []);
 
   return {

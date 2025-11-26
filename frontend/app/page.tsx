@@ -127,11 +127,15 @@ export default function Home() {
   const handleSendMessage = useCallback(
     (content: string) => {
       if (!selectedChannelId || !isConnected) {
+        setError('Cannot send message: not connected or no channel selected.');
         return;
       }
       const success = sendMessage(selectedChannelId, content);
       if (!success) {
         setError('Failed to send message. Please check your connection.');
+      } else {
+        // 메시지 전송 성공 시 에러 초기화
+        setError(null);
       }
     },
     [selectedChannelId, isConnected, sendMessage]
