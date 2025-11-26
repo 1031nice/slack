@@ -4,7 +4,9 @@ import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
+import com.slack.exception.UserNotFoundException;
 import com.slack.exception.WorkspaceNotFoundException;
+import com.slack.repository.UserRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,11 +21,15 @@ import java.util.stream.Collectors;
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
-    private final UserService userService;
+    // TODO: [기술 부채] Repository 직접 사용은 임시 해결책
+    // 현재: WorkspaceService → UserRepository 직접 사용 (순환 참조 해결됨)
+    // 향후: Application Service 레이어 추가하여 UserRegistrationService에서 조율하는 것이 더 나은 구조
+    private final UserRepository userRepository;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
-        User owner = userService.findByAuthUserId(authUserId);
+        User owner = userRepository.findByAuthUserId(authUserId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with authUserId: " + authUserId));
         
         Workspace workspace = Workspace.builder()
                 .name(request.getName())
@@ -41,7 +47,8 @@ public class WorkspaceService {
     }
 
     public List<WorkspaceResponse> getUserWorkspaces(String authUserId) {
-        User user = userService.findByAuthUserId(authUserId);
+        User user = userRepository.findByAuthUserId(authUserId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with authUserId: " + authUserId));
         return workspaceRepository.findAll().stream()
                 .filter(workspace -> workspace.getOwner().getId().equals(user.getId()))
                 .map(this::toResponse)

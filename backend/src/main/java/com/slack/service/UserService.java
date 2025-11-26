@@ -22,6 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    // TODO: [기술 부채] 같은 레이어의 Domain Service 간 의존성 제거 필요
+    // 현재: UserService → WorkspaceService, ChannelService (순환 참조 위험)
+    // 해결: Application Service 레이어 추가하여 UserRegistrationService에서 조율
+    // 참고: 같은 레이어의 서비스 간 의존성은 스파게티 코드로 이어질 수 있음
     @Lazy
     private final WorkspaceService workspaceService;
     @Lazy
