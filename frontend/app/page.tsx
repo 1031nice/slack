@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { fetchChannels, fetchMessages, Channel, Message, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
@@ -10,6 +11,7 @@ import MessageList from '@/components/MessageList';
 import MessageInput from '@/components/MessageInput';
 
 export default function Home() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
@@ -28,10 +30,11 @@ export default function Home() {
     if (authToken && isValidToken(authToken)) {
       setToken(authToken);
     } else {
-      setError('Authentication token is required. Please set NEXT_PUBLIC_AUTH_TOKEN or log in.');
-      setLoading(false);
+      // 토큰이 없으면 로그인 페이지로 리다이렉트
+      router.push('/login');
+      return;
     }
-  }, []);
+  }, [router]);
 
   // WebSocket 에러 처리
   useEffect(() => {
@@ -134,6 +137,11 @@ export default function Home() {
     [selectedChannelId, isConnected, sendMessage]
   );
 
+  // 토큰이 없으면 아무것도 렌더링하지 않음 (리다이렉트 중)
+  if (!token) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -145,19 +153,6 @@ export default function Home() {
     );
   }
 
-  if (error && !token) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center max-w-md p-6 bg-white rounded-lg shadow">
-          <div className="text-red-500 text-lg font-semibold mb-2">Authentication Required</div>
-          <div className="text-gray-600 mb-4">{error}</div>
-          <div className="text-sm text-gray-500">
-            Please set the NEXT_PUBLIC_AUTH_TOKEN environment variable or implement login.
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen">

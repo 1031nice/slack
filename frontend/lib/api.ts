@@ -1,5 +1,16 @@
 const API_BASE_URL = 'http://localhost:8080/api';
 
+export interface TokenExchangeRequest {
+  code: string;
+  redirectUri: string;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+}
+
 export interface Channel {
   id: number;
   workspaceId: number;
@@ -109,3 +120,34 @@ export async function fetchMessages(
   }
 }
 
+export async function exchangeToken(request: TokenExchangeRequest): Promise<LoginResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 400) {
+        throw new ApiError('Invalid authorization code.', response.status, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Token exchange failed: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred during token exchange.');
+  }
+}
