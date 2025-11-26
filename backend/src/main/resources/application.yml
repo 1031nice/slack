@@ -20,6 +20,13 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+  
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081
+          jwk-set-uri: http://localhost:8081/oauth2/jwks
 
 springdoc:
   api-docs:
@@ -34,12 +41,21 @@ springdoc:
 server:
   port: 8080
 
-# OAuth2 Resource Server Configuration
-spring:
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://localhost:8081
-          jwk-set-uri: http://localhost:8081/oauth2/jwks
+# Auth Server Configuration
+auth:
+  server:
+    url: http://localhost:8081
+  client:
+    # Client ID and secret must match the client registered in the auth server
+    # The auth server automatically registers this client on startup with:
+    # - clientId: "slack"
+    # - clientSecret: "slack-secret-key"
+    # - scopes: ["read", "write"]
+    # - grantTypes: ["authorization_code", "refresh_token", "client_credentials"]
+    id: slack
+    secret: slack-secret-key
+    redirect-uris: http://localhost:3000/auth/callback,http://localhost:3000/signup/callback,http://localhost:3000/callback
+    # Auto-register OAuth2 client on startup (not needed if auth server auto-registers)
+    # If false, you need to register the client manually at {auth.server.url}/api/v1/oauth2/clients
+    auto-register: false
 
