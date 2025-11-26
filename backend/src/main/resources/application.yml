@@ -41,6 +41,17 @@ springdoc:
 server:
   port: 8080
 
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
 # Auth Server Configuration
 auth:
   server:
