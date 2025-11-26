@@ -2,35 +2,51 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { fetchChannels, fetchMessages, Channel, Message } from '@/lib/api';
+import { fetchChannels, fetchMessages, Channel, Message, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
+import { getAuthToken, isValidToken } from '@/lib/auth';
 import ChannelList from '@/components/ChannelList';
 import MessageList from '@/components/MessageList';
 import MessageInput from '@/components/MessageInput';
 
-// TODO: 실제 인증 시스템과 연동 필요
-// 임시로 토큰을 로컬 스토리지나 환경 변수에서 가져오도록 설정
-const TEMP_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || '';
-
 export default function Home() {
-  const [token] = useState<string | null>(TEMP_TOKEN);
+  const [token, setToken] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { isConnected, subscribeToChannel, sendMessage } = useWebSocket(token);
+  const { isConnected, error: wsError, subscribeToChannel, sendMessage } = useWebSocket(token);
 
   // 기본 workspace ID (v0.1에서는 단일 workspace 사용)
   const workspaceId = 1;
 
+  // 토큰 초기화
+  useEffect(() => {
+    const authToken = getAuthToken();
+    if (authToken && isValidToken(authToken)) {
+      setToken(authToken);
+    } else {
+      setError('Authentication token is required. Please set NEXT_PUBLIC_AUTH_TOKEN or log in.');
+      setLoading(false);
+    }
+  }, []);
+
+  // WebSocket 에러 처리
+  useEffect(() => {
+    if (wsError) {
+      setError(`WebSocket: ${wsError.message}`);
+    }
+  }, [wsError]);
+
   useEffect(() => {
     if (!token) {
-      setError('Authentication token is required');
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
+    setError(null);
 
     // 채널 목록 로드
     fetchChannels(workspaceId, token)
@@ -43,7 +59,15 @@ export default function Home() {
       })
       .catch((err) => {
         console.error('Failed to fetch channels:', err);
-        setError('Failed to load channels');
+        if (err instanceof ApiError) {
+          setError(err.message);
+          // 인증 오류인 경우 토큰 제거
+          if (err.statusCode === 401) {
+            setToken(null);
+          }
+        } else {
+          setError('Failed to load channels. Please try again.');
+        }
         setLoading(false);
       });
   }, [token, workspaceId]);
@@ -57,10 +81,19 @@ export default function Home() {
     fetchMessages(selectedChannelId, token)
       .then((messages) => {
         setMessages(messages.reverse()); // 최신 메시지가 아래에 오도록
+        setError(null);
       })
       .catch((err) => {
         console.error('Failed to fetch messages:', err);
-        setError('Failed to load messages');
+        if (err instanceof ApiError) {
+          setError(err.message);
+          // 인증 오류인 경우 토큰 제거
+          if (err.statusCode === 401) {
+            setToken(null);
+          }
+        } else {
+          setError('Failed to load messages. Please try again.');
+        }
       });
   }, [selectedChannelId, token]);
 
@@ -90,26 +123,38 @@ export default function Home() {
 
   const handleSendMessage = useCallback(
     (content: string) => {
-      if (!selectedChannelId) {
+      if (!selectedChannelId || !isConnected) {
         return;
       }
-      sendMessage(selectedChannelId, content);
+      const success = sendMessage(selectedChannelId, content);
+      if (!success) {
+        setError('Failed to send message. Please check your connection.');
+      }
     },
-    [selectedChannelId, sendMessage]
+    [selectedChannelId, isConnected, sendMessage]
   );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div>Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <div className="text-gray-600">Loading channels...</div>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !token) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-red-500">Error: {error}</div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center max-w-md p-6 bg-white rounded-lg shadow">
+          <div className="text-red-500 text-lg font-semibold mb-2">Authentication Required</div>
+          <div className="text-gray-600 mb-4">{error}</div>
+          <div className="text-sm text-gray-500">
+            Please set the NEXT_PUBLIC_AUTH_TOKEN environment variable or implement login.
+          </div>
+        </div>
       </div>
     );
   }
@@ -123,15 +168,24 @@ export default function Home() {
       />
       <div className="flex-1 flex flex-col">
         <div className="p-4 border-b bg-white">
-          <h1 className="text-xl font-bold">
-            {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
-          </h1>
-          <div className="text-sm text-gray-500 mt-1">
-            {isConnected ? (
-              <span className="text-green-500">● Connected</span>
-            ) : (
-              <span className="text-red-500">● Disconnected</span>
-            )}
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold">
+              {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
+            </h1>
+            <div className="flex items-center space-x-2">
+              {error && (
+                <div className="text-sm text-red-500 bg-red-50 px-3 py-1 rounded">
+                  {error}
+                </div>
+              )}
+              <div className="text-sm text-gray-500">
+                {isConnected ? (
+                  <span className="text-green-500">● Connected</span>
+                ) : (
+                  <span className="text-red-500">● Disconnected</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         <MessageList messages={messages} />

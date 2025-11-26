@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketClient, WebSocketMessage } from '@/lib/websocket';
+import { WebSocketClient, WebSocketMessage, WebSocketError } from '@/lib/websocket';
 
 export function useWebSocket(token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<WebSocketError | null>(null);
   const clientRef = useRef<WebSocketClient | null>(null);
 
   useEffect(() => {
     if (!token) {
+      setIsConnected(false);
+      setError(null);
       return;
     }
 
@@ -22,7 +24,7 @@ export function useWebSocket(token: string | null) {
         setIsConnected(true);
         setError(null);
       },
-      (err) => {
+      (err: WebSocketError) => {
         setIsConnected(false);
         setError(err);
       }

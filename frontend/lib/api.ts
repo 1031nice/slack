@@ -20,18 +20,47 @@ export interface Message {
   updatedAt: string;
 }
 
-export async function fetchChannels(workspaceId: number, token: string): Promise<Channel[]> {
-  const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/channels`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch channels');
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+    public statusText?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
   }
+}
 
-  return response.json();
+export async function fetchChannels(workspaceId: number, token: string): Promise<Channel[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/channels`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 403) {
+        throw new ApiError('You do not have permission to access this resource.', 403, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to fetch channels: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while fetching channels.');
+  }
 }
 
 export async function fetchMessages(
@@ -40,23 +69,43 @@ export async function fetchMessages(
   limit?: number,
   before?: number
 ): Promise<Message[]> {
-  const params = new URLSearchParams();
-  if (limit) params.append('limit', limit.toString());
-  if (before) params.append('before', before.toString());
+  try {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (before) params.append('before', before.toString());
 
-  const response = await fetch(
-    `${API_BASE_URL}/channels/${channelId}/messages?${params.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    const response = await fetch(
+      `${API_BASE_URL}/channels/${channelId}/messages?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 403) {
+        throw new ApiError('You do not have permission to access this resource.', 403, response.statusText);
+      } else if (response.status === 404) {
+        throw new ApiError('Channel not found.', 404, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to fetch messages: ${response.statusText}`, response.status, response.statusText);
+      }
     }
-  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch messages');
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while fetching messages.');
   }
-
-  return response.json();
 }
 
