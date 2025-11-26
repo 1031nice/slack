@@ -4,6 +4,7 @@ import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
+import com.slack.repository.UserRepository;
 import com.slack.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +33,7 @@ class WorkspaceServiceTest {
     private WorkspaceRepository workspaceRepository;
 
     @Mock
-    private UserService userService;
+    private UserRepository userRepository;
 
     @InjectMocks
     private WorkspaceService workspaceService;
@@ -71,7 +72,7 @@ class WorkspaceServiceTest {
                 .ownerId(1L)
                 .build();
 
-        when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
+        when(userRepository.findByAuthUserId("auth-123")).thenReturn(java.util.Optional.of(testUser));
         when(workspaceRepository.save(any(Workspace.class))).thenReturn(testWorkspace);
 
         // when
@@ -81,7 +82,7 @@ class WorkspaceServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("Test Workspace");
         assertThat(result.getOwnerId()).isEqualTo(1L);
-        verify(userService, times(1)).findByAuthUserId("auth-123");
+        verify(userRepository, times(1)).findByAuthUserId("auth-123");
         verify(workspaceRepository, times(1)).save(any(Workspace.class));
     }
 
@@ -142,7 +143,7 @@ class WorkspaceServiceTest {
                 .build();
         setField(otherWorkspace, "id", 3L);
 
-        when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
+        when(userRepository.findByAuthUserId("auth-123")).thenReturn(java.util.Optional.of(testUser));
         when(workspaceRepository.findAll()).thenReturn(Arrays.asList(workspace1, workspace2, otherWorkspace));
 
         // when
@@ -152,7 +153,7 @@ class WorkspaceServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result).extracting(WorkspaceResponse::getName)
                 .containsExactlyInAnyOrder("Workspace 1", "Workspace 2");
-        verify(userService, times(1)).findByAuthUserId("auth-123");
+        verify(userRepository, times(1)).findByAuthUserId("auth-123");
         verify(workspaceRepository, times(1)).findAll();
     }
 }
