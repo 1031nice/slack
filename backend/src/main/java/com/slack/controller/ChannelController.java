@@ -1,9 +1,9 @@
 package com.slack.controller;
 
+import com.slack.application.UserRegistrationService;
 import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
 import com.slack.service.ChannelService;
-import com.slack.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,7 +20,7 @@ import java.util.List;
 public class ChannelController {
 
     private final ChannelService channelService;
-    private final UserService userService;
+    private final UserRegistrationService userRegistrationService;
 
     @PostMapping("/workspaces/{workspaceId}/channels")
     public ResponseEntity<ChannelResponse> createChannel(
@@ -46,7 +46,7 @@ public class ChannelController {
         }
         
         // 사용자 생성/조회 (기본 워크스페이스/채널 자동 생성)
-        userService.findOrCreateByAuthUserId(authUserId, email != null ? email : authUserId, name);
+        userRegistrationService.findOrCreateUser(authUserId, email != null ? email : authUserId, name);
         
         List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId);
         return ResponseEntity.ok(channels);
