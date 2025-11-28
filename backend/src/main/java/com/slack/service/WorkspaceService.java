@@ -4,9 +4,7 @@ import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
-import com.slack.exception.UserNotFoundException;
 import com.slack.exception.WorkspaceNotFoundException;
-import com.slack.repository.UserRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,21 +13,23 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Workspace Domain Service
+ * 
+ * Workspace 도메인에 대한 비즈니스 로직을 처리합니다.
+ * 다른 Domain Service와의 의존성을 최소화하여 순환 참조를 방지합니다.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
-    // TODO: [기술 부채] Repository 직접 사용은 임시 해결책
-    // 현재: WorkspaceService → UserRepository 직접 사용 (순환 참조 해결됨)
-    // 향후: Application Service 레이어 추가하여 UserRegistrationService에서 조율하는 것이 더 나은 구조
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
-        User owner = userRepository.findByAuthUserId(authUserId)
-                .orElseThrow(() -> new UserNotFoundException("User not found with authUserId: " + authUserId));
+        User owner = userService.findByAuthUserId(authUserId);
         
         Workspace workspace = Workspace.builder()
                 .name(request.getName())
@@ -47,8 +47,7 @@ public class WorkspaceService {
     }
 
     public List<WorkspaceResponse> getUserWorkspaces(String authUserId) {
-        User user = userRepository.findByAuthUserId(authUserId)
-                .orElseThrow(() -> new UserNotFoundException("User not found with authUserId: " + authUserId));
+        User user = userService.findByAuthUserId(authUserId);
         return workspaceRepository.findAll().stream()
                 .filter(workspace -> workspace.getOwner().getId().equals(user.getId()))
                 .map(this::toResponse)
