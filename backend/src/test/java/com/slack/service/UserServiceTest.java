@@ -1,16 +1,7 @@
 package com.slack.service;
 
-import com.slack.domain.channel.Channel;
-import com.slack.domain.channel.ChannelMember;
-import com.slack.domain.channel.ChannelRole;
-import com.slack.domain.channel.ChannelType;
 import com.slack.domain.user.User;
-import com.slack.domain.workspace.Workspace;
-import com.slack.domain.workspace.WorkspaceMember;
-import com.slack.domain.workspace.WorkspaceRole;
-import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.UserRepository;
-import com.slack.repository.WorkspaceMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,18 +24,6 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private WorkspaceService workspaceService;
-
-    @Mock
-    private ChannelService channelService;
-
-    @Mock
-    private WorkspaceMemberRepository workspaceMemberRepository;
-
-    @Mock
-    private ChannelMemberRepository channelMemberRepository;
 
     @InjectMocks
     private UserService userService;
@@ -123,26 +102,39 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("authUserId로 User를 찾거나 없으면 생성한다 - 기존 User 반환")
-    void findOrCreateByAuthUserId_ExistingUser() {
+    @DisplayName("authUserId로 User를 Optional로 찾을 수 있다")
+    void findByAuthUserIdOptional_Success() {
         // given
         when(userRepository.findByAuthUserId("auth-123")).thenReturn(Optional.of(testUser));
 
         // when
-        User result = userService.findOrCreateByAuthUserId("auth-123", "test@example.com", "Test User");
+        Optional<User> result = userService.findByAuthUserIdOptional("auth-123");
 
         // then
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result).isPresent();
+        assertThat(result.get().getAuthUserId()).isEqualTo("auth-123");
+        assertThat(result.get().getEmail()).isEqualTo("test@example.com");
         verify(userRepository, times(1)).findByAuthUserId("auth-123");
-        verify(userRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("authUserId로 User를 찾거나 없으면 생성한다 - 새 User 생성")
-    void findOrCreateByAuthUserId_NewUser() throws Exception {
+    @DisplayName("authUserId로 User를 Optional로 찾지 못하면 empty를 반환한다")
+    void findByAuthUserIdOptional_NotFound() {
         // given
-        when(userRepository.findByAuthUserId("auth-456")).thenReturn(Optional.empty());
+        when(userRepository.findByAuthUserId("auth-999")).thenReturn(Optional.empty());
+
+        // when
+        Optional<User> result = userService.findByAuthUserIdOptional("auth-999");
+
+        // then
+        assertThat(result).isEmpty();
+        verify(userRepository, times(1)).findByAuthUserId("auth-999");
+    }
+
+    @Test
+    @DisplayName("새 User를 생성할 수 있다")
+    void createUser_Success() throws Exception {
+        // given
         User newUser = User.builder()
                 .authUserId("auth-456")
                 .email("new@example.com")
@@ -151,109 +143,15 @@ class UserServiceTest {
         setField(newUser, "id", 2L);
         when(userRepository.save(any(User.class))).thenReturn(newUser);
 
-        Workspace defaultWorkspace = Workspace.builder()
-                .name("Default Workspace")
-                .owner(newUser)
-                .build();
-        setField(defaultWorkspace, "id", 1L);
-        when(workspaceService.findOrCreateDefaultWorkspace(newUser)).thenReturn(defaultWorkspace);
-
-        Channel defaultChannel = Channel.builder()
-                .workspace(defaultWorkspace)
-                .name("general")
-                .type(ChannelType.PUBLIC)
-                .createdBy(newUser.getId())
-                .build();
-        setField(defaultChannel, "id", 1L);
-        when(channelService.findOrCreateDefaultChannel(defaultWorkspace, newUser.getId()))
-                .thenReturn(defaultChannel);
-
-        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, 2L)).thenReturn(false);
-        when(channelMemberRepository.existsByChannelIdAndUserId(1L, 2L)).thenReturn(false);
-
         // when
-        User result = userService.findOrCreateByAuthUserId("auth-456", "new@example.com", "New User");
+        User result = userService.createUser("auth-456", "new@example.com", "New User");
 
         // then
         assertThat(result).isNotNull();
         assertThat(result.getAuthUserId()).isEqualTo("auth-456");
         assertThat(result.getEmail()).isEqualTo("new@example.com");
-        verify(userRepository, times(1)).findByAuthUserId("auth-456");
+        assertThat(result.getName()).isEqualTo("New User");
         verify(userRepository, times(1)).save(any(User.class));
-    }
-
-    @Test
-    @DisplayName("새 User 생성 시 기본 workspace와 channel이 자동으로 생성되고 멤버로 추가된다")
-    void findOrCreateByAuthUserId_NewUser_CreatesDefaultWorkspaceAndChannel() throws Exception {
-        // given
-        when(userRepository.findByAuthUserId("auth-789")).thenReturn(Optional.empty());
-        
-        User newUser = User.builder()
-                .authUserId("auth-789")
-                .email("newuser@example.com")
-                .name("New User")
-                .build();
-        setField(newUser, "id", 3L);
-        when(userRepository.save(any(User.class))).thenReturn(newUser);
-
-        Workspace defaultWorkspace = Workspace.builder()
-                .name("Default Workspace")
-                .owner(newUser)
-                .build();
-        setField(defaultWorkspace, "id", 1L);
-        when(workspaceService.findOrCreateDefaultWorkspace(newUser)).thenReturn(defaultWorkspace);
-
-        Channel defaultChannel = Channel.builder()
-                .workspace(defaultWorkspace)
-                .name("general")
-                .type(ChannelType.PUBLIC)
-                .createdBy(newUser.getId())
-                .build();
-        setField(defaultChannel, "id", 1L);
-        when(channelService.findOrCreateDefaultChannel(defaultWorkspace, newUser.getId()))
-                .thenReturn(defaultChannel);
-
-        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, 3L)).thenReturn(false);
-        when(channelMemberRepository.existsByChannelIdAndUserId(1L, 3L)).thenReturn(false);
-
-        // when
-        User result = userService.findOrCreateByAuthUserId("auth-789", "newuser@example.com", "New User");
-
-        // then
-        assertThat(result).isNotNull();
-        assertThat(result.getAuthUserId()).isEqualTo("auth-789");
-        
-        // 기본 workspace와 channel 생성 확인
-        verify(workspaceService, times(1)).findOrCreateDefaultWorkspace(newUser);
-        verify(channelService, times(1)).findOrCreateDefaultChannel(defaultWorkspace, newUser.getId());
-        
-        // WorkspaceMember 생성 확인
-        verify(workspaceMemberRepository, times(1)).existsByWorkspaceIdAndUserId(1L, 3L);
-        verify(workspaceMemberRepository, times(1)).save(any(WorkspaceMember.class));
-        
-        // ChannelMember 생성 확인
-        verify(channelMemberRepository, times(1)).existsByChannelIdAndUserId(1L, 3L);
-        verify(channelMemberRepository, times(1)).save(any(ChannelMember.class));
-    }
-
-    @Test
-    @DisplayName("기존 User는 기본 workspace/channel 생성 로직이 실행되지 않는다")
-    void findOrCreateByAuthUserId_ExistingUser_DoesNotCreateDefaultWorkspaceAndChannel() {
-        // given
-        when(userRepository.findByAuthUserId("auth-123")).thenReturn(Optional.of(testUser));
-
-        // when
-        User result = userService.findOrCreateByAuthUserId("auth-123", "test@example.com", "Test User");
-
-        // then
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(1L);
-        
-        // 기본 workspace/channel 생성이 호출되지 않음
-        verify(workspaceService, never()).findOrCreateDefaultWorkspace(any());
-        verify(channelService, never()).findOrCreateDefaultChannel(any(), any());
-        verify(workspaceMemberRepository, never()).save(any());
-        verify(channelMemberRepository, never()).save(any());
     }
 }
 
