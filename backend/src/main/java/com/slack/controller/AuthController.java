@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import static com.slack.controller.ResponseHelper.ok;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -18,7 +20,7 @@ public class AuthController {
     @PostMapping("/token")
     public ResponseEntity<LoginResponse> exchangeToken(@Valid @RequestBody TokenExchangeRequest request) {
         LoginResponse response = authService.exchangeToken(request.getCode(), request.getRedirectUri());
-        return ResponseEntity.ok(response);
+        return ok(response);
     }
 }
 

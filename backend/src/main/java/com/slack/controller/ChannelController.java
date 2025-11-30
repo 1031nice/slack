@@ -4,15 +4,18 @@ import com.slack.application.UserRegistrationService;
 import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
 import com.slack.service.ChannelService;
+import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
+import static com.slack.controller.ResponseHelper.created;
+import static com.slack.controller.ResponseHelper.ok;
 
 @RestController
 @RequestMapping("/api")
@@ -27,7 +30,7 @@ public class ChannelController {
             @PathVariable Long workspaceId,
             @Valid @RequestBody ChannelCreateRequest request) {
         ChannelResponse response = channelService.createChannel(workspaceId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return created(response);
     }
 
     @GetMapping("/workspaces/{workspaceId}/channels")
@@ -35,27 +38,23 @@ public class ChannelController {
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal Jwt jwt) {
         // JWT에서 사용자 정보 추출 및 사용자 생성/조회
-        String authUserId = jwt.getSubject();
-        String email = jwt.getClaimAsString("email");
-        String name = jwt.getClaimAsString("name");
-        if (email == null) {
-            email = jwt.getClaimAsString("preferred_username");
-        }
-        if (name == null) {
-            name = email != null ? email.split("@")[0] : "User";
-        }
+        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
         
         // 사용자 생성/조회 (기본 워크스페이스/채널 자동 생성)
-        userRegistrationService.findOrCreateUser(authUserId, email != null ? email : authUserId, name);
+        userRegistrationService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
         
         List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId);
-        return ResponseEntity.ok(channels);
+        return ok(channels);
     }
 
     @GetMapping("/channels/{channelId}")
     public ResponseEntity<ChannelResponse> getChannelById(@PathVariable Long channelId) {
         ChannelResponse response = channelService.getChannelById(channelId);
-        return ResponseEntity.ok(response);
+        return ok(response);
     }
 }
 

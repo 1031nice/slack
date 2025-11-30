@@ -5,11 +5,13 @@ import com.slack.dto.message.MessageResponse;
 import com.slack.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
+import static com.slack.controller.ResponseHelper.created;
+import static com.slack.controller.ResponseHelper.ok;
 
 @RestController
 @RequestMapping("/api")
@@ -23,7 +25,7 @@ public class MessageController {
             @PathVariable Long channelId,
             @Valid @RequestBody MessageCreateRequest request) {
         MessageResponse response = messageService.createMessage(channelId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return created(response);
     }
 
     @GetMapping("/channels/{channelId}/messages")
@@ -32,13 +34,13 @@ public class MessageController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Long before) {
         List<MessageResponse> messages = messageService.getChannelMessages(channelId, limit, before);
-        return ResponseEntity.ok(messages);
+        return ok(messages);
     }
 
     @GetMapping("/messages/{messageId}")
     public ResponseEntity<MessageResponse> getMessageById(@PathVariable Long messageId) {
         MessageResponse response = messageService.getMessageById(messageId);
-        return ResponseEntity.ok(response);
+        return ok(response);
     }
 }
 
