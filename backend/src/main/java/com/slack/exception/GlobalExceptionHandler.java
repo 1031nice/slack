@@ -55,6 +55,36 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(InvitationNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleInvitationNotFound(InvitationNotFoundException ex) {
+        ErrorResponse error = ErrorResponse.builder()
+                .error("Invitation Not Found")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(InvitationExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleInvitationExpired(InvitationExpiredException ex) {
+        ErrorResponse error = ErrorResponse.builder()
+                .error("Invitation Expired")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(InvitationAlreadyAcceptedException.class)
+    public ResponseEntity<ErrorResponse> handleInvitationAlreadyAccepted(InvitationAlreadyAcceptedException ex) {
+        ErrorResponse error = ErrorResponse.builder()
+                .error("Invitation Already Accepted")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
