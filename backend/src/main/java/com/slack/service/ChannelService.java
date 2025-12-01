@@ -23,6 +23,7 @@ public class ChannelService {
 
     private final ChannelRepository channelRepository;
     private final WorkspaceRepository workspaceRepository;
+    private final PermissionService permissionService;
 
     @Transactional
     public ChannelResponse createChannel(Long workspaceId, ChannelCreateRequest request) {
@@ -46,11 +47,37 @@ public class ChannelService {
         return toResponse(channel);
     }
 
-    public List<ChannelResponse> getWorkspaceChannels(Long workspaceId) {
-        List<Channel> channels = channelRepository.findByWorkspaceId(workspaceId);
-        return channels.stream()
+    /**
+     * 사용자가 접근 가능한 워크스페이스의 채널 목록을 반환합니다.
+     * - PUBLIC 채널: 워크스페이스 멤버면 모두 표시
+     * - PRIVATE 채널: 채널 멤버만 표시
+     * 
+     * @param workspaceId 워크스페이스 ID
+     * @param userId 사용자 ID
+     * @return 사용자가 접근 가능한 채널 목록
+     */
+    public List<ChannelResponse> getWorkspaceChannels(Long workspaceId, Long userId) {
+        return channelRepository.findByWorkspaceId(workspaceId).stream()
+                .filter(channel -> canUserAccessChannel(channel, userId))
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 사용자가 특정 채널에 접근할 수 있는지 확인합니다.
+     * 
+     * @param channel 채널
+     * @param userId 사용자 ID
+     * @return 접근 가능한 경우 true
+     */
+    private boolean canUserAccessChannel(Channel channel, Long userId) {
+        // PUBLIC 채널은 워크스페이스 멤버면 접근 가능
+        if (channel.getType() == ChannelType.PUBLIC) {
+            return permissionService.isWorkspaceMember(userId, channel.getWorkspace().getId());
+        }
+        
+        // PRIVATE 채널은 채널 멤버만 접근 가능
+        return permissionService.isChannelMember(userId, channel.getId());
     }
 
     /**
