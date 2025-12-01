@@ -4,14 +4,17 @@ import com.slack.domain.channel.Channel;
 import com.slack.domain.channel.ChannelMember;
 import com.slack.domain.channel.ChannelRole;
 import com.slack.domain.channel.ChannelType;
+import com.slack.domain.message.Message;
 import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
 import com.slack.domain.workspace.WorkspaceMember;
 import com.slack.domain.workspace.WorkspaceRole;
 import com.slack.exception.ChannelNotFoundException;
+import com.slack.exception.MessageNotFoundException;
 import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
+import com.slack.repository.MessageRepository;
 import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,8 @@ public class PermissionService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final ChannelRepository channelRepository;
     private final ChannelMemberRepository channelMemberRepository;
+    private final MessageRepository messageRepository;
+    private final UserService userService;
 
     /**
      * 사용자가 특정 Workspace의 멤버인지 확인합니다.
@@ -163,6 +168,83 @@ public class PermissionService {
             return userRole == ChannelRole.ADMIN;
         }
         return false;
+    }
+
+    // ========== authUserId를 받는 메서드들 (SpEL에서 사용하기 위함) ==========
+
+    /**
+     * authUserId로 사용자가 특정 Workspace의 멤버인지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param workspaceId Workspace ID
+     * @return 멤버인 경우 true
+     */
+    public boolean isWorkspaceMemberByAuthUserId(String authUserId, Long workspaceId) {
+        User user = userService.findByAuthUserId(authUserId);
+        return isWorkspaceMember(user.getId(), workspaceId);
+    }
+
+    /**
+     * authUserId로 사용자가 특정 Workspace의 특정 역할 이상인지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param workspaceId Workspace ID
+     * @param requiredRole 필요한 최소 역할
+     * @return 권한이 있는 경우 true
+     */
+    public boolean hasWorkspaceRoleByAuthUserId(String authUserId, Long workspaceId, WorkspaceRole requiredRole) {
+        User user = userService.findByAuthUserId(authUserId);
+        return hasWorkspaceRole(user.getId(), workspaceId, requiredRole);
+    }
+
+    /**
+     * authUserId로 사용자가 특정 Workspace의 소유자인지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param workspaceId Workspace ID
+     * @return 소유자인 경우 true
+     */
+    public boolean isWorkspaceOwnerByAuthUserId(String authUserId, Long workspaceId) {
+        User user = userService.findByAuthUserId(authUserId);
+        return isWorkspaceOwner(user.getId(), workspaceId);
+    }
+
+    /**
+     * authUserId로 사용자가 특정 Channel에 접근할 수 있는지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param channelId Channel ID
+     * @return 접근 가능한 경우 true
+     */
+    public boolean canAccessChannelByAuthUserId(String authUserId, Long channelId) {
+        User user = userService.findByAuthUserId(authUserId);
+        return canAccessChannel(user.getId(), channelId);
+    }
+
+    /**
+     * authUserId로 사용자가 특정 Channel의 멤버인지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param channelId Channel ID
+     * @return 멤버인 경우 true
+     */
+    public boolean isChannelMemberByAuthUserId(String authUserId, Long channelId) {
+        User user = userService.findByAuthUserId(authUserId);
+        return isChannelMember(user.getId(), channelId);
+    }
+
+    /**
+     * authUserId로 사용자가 특정 Message에 접근할 수 있는지 확인합니다.
+     * Message가 속한 Channel에 접근 권한이 있는지 확인합니다.
+     * 
+     * @param authUserId 인증 서버의 사용자 ID
+     * @param messageId Message ID
+     * @return 접근 가능한 경우 true
+     */
+    public boolean canAccessMessageByAuthUserId(String authUserId, Long messageId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + messageId));
+        return canAccessChannelByAuthUserId(authUserId, message.getChannel().getId());
     }
 }
 
