@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { fetchChannels, fetchMessages, fetchWorkspaces, Channel, Message, Workspace, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
-import { getAuthToken, isValidToken } from '@/lib/auth';
+import { getAuthToken, isValidToken, removeAuthToken } from '@/lib/auth';
 import WorkspaceList from '@/components/WorkspaceList';
 import ChannelList from '@/components/ChannelList';
 import MessageList from '@/components/MessageList';
@@ -67,14 +67,21 @@ export default function Home() {
         if (err instanceof ApiError) {
           setError(err.message);
           if (err.statusCode === 401) {
+            // 인증 실패 시 토큰 제거하고 로그인 페이지로 리다이렉트
+            removeAuthToken();
             setToken(null);
+            router.push('/login');
+            return;
+          } else if (err.statusCode === 404) {
+            // 404 에러는 백엔드가 실행 중이 아니거나 엔드포인트가 없는 경우
+            console.error('Backend endpoint not found. Please check if the backend is running.');
           }
         } else {
           setError('Failed to load workspaces. Please try again.');
         }
         setLoading(false);
       });
-  }, [token, selectedWorkspaceId]);
+  }, [token]); // selectedWorkspaceId 제거 - 워크스페이스 목록은 토큰이 변경될 때만 로드
 
   // 선택된 워크스페이스의 채널 목록 로드
   useEffect(() => {
@@ -100,7 +107,11 @@ export default function Home() {
         if (err instanceof ApiError) {
           setError(err.message);
           if (err.statusCode === 401) {
+            // 인증 실패 시 토큰 제거하고 로그인 페이지로 리다이렉트
+            removeAuthToken();
             setToken(null);
+            router.push('/login');
+            return;
           }
         } else {
           setError('Failed to load channels. Please try again.');
@@ -125,9 +136,12 @@ export default function Home() {
         console.error('Failed to fetch messages:', err);
         if (err instanceof ApiError) {
           setError(err.message);
-          // 인증 오류인 경우 토큰 제거
+          // 인증 오류인 경우 토큰 제거하고 로그인 페이지로 리다이렉트
           if (err.statusCode === 401) {
+            removeAuthToken();
             setToken(null);
+            router.push('/login');
+            return;
           }
         } else {
           setError('Failed to load messages. Please try again.');
@@ -177,8 +191,14 @@ export default function Home() {
   );
 
   const handleCreateWorkspace = useCallback(() => {
+    console.log('Create workspace button clicked');
+    if (!token) {
+      console.error('Cannot create workspace: no token');
+      setError('Please log in to create a workspace.');
+      return;
+    }
     setIsCreateWorkspaceModalOpen(true);
-  }, []);
+  }, [token]);
 
   const handleWorkspaceCreated = useCallback((workspace: Workspace) => {
     setWorkspaces((prev) => [...prev, workspace]);

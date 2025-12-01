@@ -183,16 +183,24 @@ export async function exchangeToken(request: TokenExchangeRequest): Promise<Logi
 }
 
 export async function fetchWorkspaces(token: string): Promise<Workspace[]> {
+  const url = `${API_BASE_URL}/workspaces`;
   try {
-    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+    console.log('Fetching workspaces from:', url);
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
 
+    console.log('Response status:', response.status, response.statusText);
+
     if (!response.ok) {
       if (response.status === 401) {
         throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 404) {
+        console.error('404 Error - URL:', url);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        throw new ApiError('Workspaces endpoint not found. Please check if the backend is running.', 404, response.statusText);
       } else if (response.status >= 500) {
         throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
       } else {
