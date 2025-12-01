@@ -31,6 +31,19 @@ export interface Message {
   updatedAt: string;
 }
 
+export interface Workspace {
+  id: number;
+  name: string;
+  ownerId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceCreateRequest {
+  name: string;
+}
+
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -151,3 +164,70 @@ export async function exchangeToken(request: TokenExchangeRequest): Promise<Logi
     throw new ApiError('An unexpected error occurred during token exchange.');
   }
 }
+
+export async function fetchWorkspaces(token: string): Promise<Workspace[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to fetch workspaces: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while fetching workspaces.');
+  }
+}
+
+export async function createWorkspace(request: WorkspaceCreateRequest, token: string): Promise<Workspace> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.message || 'Invalid request. Please check your input.', 400, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to create workspace: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while creating workspace.');
+  }
+}
+
