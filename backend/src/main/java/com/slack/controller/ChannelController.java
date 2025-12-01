@@ -44,13 +44,14 @@ public class ChannelController {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
         
         // 사용자 생성/조회 (기본 워크스페이스/채널 자동 생성)
-        userRegistrationService.findOrCreateUser(
+        var user = userRegistrationService.findOrCreateUser(
                 userInfo.authUserId(),
                 userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
                 userInfo.name()
         );
         
-        List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId);
+        // 사용자가 접근 가능한 채널만 필터링하여 반환
+        List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId, user.getId());
         return ok(channels);
     }
 
