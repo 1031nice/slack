@@ -31,6 +31,40 @@ export interface Message {
   updatedAt: string;
 }
 
+<<<<<<< HEAD
+export interface WorkspaceInviteRequest {
+  email: string;
+}
+
+export interface WorkspaceInviteResponse {
+  id: number;
+  workspaceId: number;
+  email: string;
+  token: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface AcceptInvitationRequest {
+  token: string;
+}
+
+=======
+export interface Workspace {
+  id: number;
+  name: string;
+  ownerId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceCreateRequest {
+  name: string;
+}
+
+
+>>>>>>> feature/workspace-selection
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -151,3 +185,133 @@ export async function exchangeToken(request: TokenExchangeRequest): Promise<Logi
     throw new ApiError('An unexpected error occurred during token exchange.');
   }
 }
+
+<<<<<<< HEAD
+export async function inviteUserToWorkspace(
+  workspaceId: number,
+  request: WorkspaceInviteRequest,
+  token: string
+): Promise<WorkspaceInviteResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/invitations`, {
+=======
+export async function fetchWorkspaces(token: string): Promise<Workspace[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to fetch workspaces: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while fetching workspaces.');
+  }
+}
+
+export async function createWorkspace(request: WorkspaceCreateRequest, token: string): Promise<Workspace> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces`, {
+>>>>>>> feature/workspace-selection
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+<<<<<<< HEAD
+      } else if (response.status === 403) {
+        throw new ApiError('You do not have permission to invite users to this workspace.', 403, response.statusText);
+=======
+>>>>>>> feature/workspace-selection
+      } else if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.message || 'Invalid request. Please check your input.', 400, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+<<<<<<< HEAD
+        throw new ApiError(`Failed to invite user: ${response.statusText}`, response.status, response.statusText);
+=======
+        throw new ApiError(`Failed to create workspace: ${response.statusText}`, response.status, response.statusText);
+>>>>>>> feature/workspace-selection
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+<<<<<<< HEAD
+    throw new ApiError('An unexpected error occurred while inviting user.');
+  }
+}
+
+export async function acceptInvitation(request: AcceptInvitationRequest, token: string): Promise<number> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces/invitations/accept`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.message || 'Invalid invitation token.', 400, response.statusText);
+      } else if (response.status === 404) {
+        throw new ApiError('Invitation not found or has expired.', 404, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to accept invitation: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while accepting invitation.');
+  }
+}
+=======
+    throw new ApiError('An unexpected error occurred while creating workspace.');
+  }
+}
+
+>>>>>>> feature/workspace-selection

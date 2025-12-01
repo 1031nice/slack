@@ -8,6 +8,7 @@ import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,7 @@ public class ChannelController {
     private final UserRegistrationService userRegistrationService;
 
     @PostMapping("/workspaces/{workspaceId}/channels")
+    @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
     public ResponseEntity<ChannelResponse> createChannel(
             @PathVariable Long workspaceId,
             @Valid @RequestBody ChannelCreateRequest request) {
@@ -34,6 +36,7 @@ public class ChannelController {
     }
 
     @GetMapping("/workspaces/{workspaceId}/channels")
+    @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
     public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal Jwt jwt) {
@@ -41,17 +44,19 @@ public class ChannelController {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
         
         // 사용자 생성/조회 (기본 워크스페이스/채널 자동 생성)
-        userRegistrationService.findOrCreateUser(
+        var user = userRegistrationService.findOrCreateUser(
                 userInfo.authUserId(),
                 userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
                 userInfo.name()
         );
         
-        List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId);
+        // 사용자가 접근 가능한 채널만 필터링하여 반환
+        List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId, user.getId());
         return ok(channels);
     }
 
     @GetMapping("/channels/{channelId}")
+    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<ChannelResponse> getChannelById(@PathVariable Long channelId) {
         ChannelResponse response = channelService.getChannelById(channelId);
         return ok(response);

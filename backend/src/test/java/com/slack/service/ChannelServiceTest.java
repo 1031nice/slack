@@ -35,6 +35,9 @@ class ChannelServiceTest {
     @Mock
     private WorkspaceRepository workspaceRepository;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private ChannelService channelService;
 
@@ -137,6 +140,7 @@ class ChannelServiceTest {
     @DisplayName("워크스페이스의 채널 목록을 조회할 수 있다")
     void getWorkspaceChannels_Success() throws Exception {
         // given
+        Long userId = 1L;
         Channel channel1 = Channel.builder()
                 .workspace(testWorkspace)
                 .name("general")
@@ -154,15 +158,17 @@ class ChannelServiceTest {
         setField(channel2, "id", 2L);
 
         when(channelRepository.findByWorkspaceId(1L)).thenReturn(Arrays.asList(channel1, channel2));
+        when(permissionService.isWorkspaceMember(userId, 1L)).thenReturn(true);
 
         // when
-        List<ChannelResponse> result = channelService.getWorkspaceChannels(1L);
+        List<ChannelResponse> result = channelService.getWorkspaceChannels(1L, userId);
 
         // then
         assertThat(result).hasSize(2);
         assertThat(result).extracting(ChannelResponse::getName)
                 .containsExactlyInAnyOrder("general", "random");
         verify(channelRepository, times(1)).findByWorkspaceId(1L);
+        verify(permissionService, times(2)).isWorkspaceMember(userId, 1L);
     }
 }
 

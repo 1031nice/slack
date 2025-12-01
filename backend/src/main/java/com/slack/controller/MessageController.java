@@ -6,6 +6,7 @@ import com.slack.service.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class MessageController {
     private final MessageService messageService;
 
     @PostMapping("/channels/{channelId}/messages")
+    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<MessageResponse> createMessage(
             @PathVariable Long channelId,
             @Valid @RequestBody MessageCreateRequest request) {
@@ -29,6 +31,7 @@ public class MessageController {
     }
 
     @GetMapping("/channels/{channelId}/messages")
+    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<List<MessageResponse>> getChannelMessages(
             @PathVariable Long channelId,
             @RequestParam(required = false) Integer limit,
@@ -38,6 +41,7 @@ public class MessageController {
     }
 
     @GetMapping("/messages/{messageId}")
+    @PreAuthorize("@permissionService.canAccessMessageByAuthUserId(authentication.principal.subject, #messageId)")
     public ResponseEntity<MessageResponse> getMessageById(@PathVariable Long messageId) {
         MessageResponse response = messageService.getMessageById(messageId);
         return ok(response);

@@ -44,12 +44,21 @@ Learning-focused Slack clone project emphasizing distributed system design, real
 
 ### v0.2 - Multi-workspace & Access Control
 **Goal**: Multiple workspaces with permission system
-- Workspace/channel CRUD
 - RBAC implementation (Owner, Admin, Member)
+  - Permission check service
+  - Spring Security Method Security
 - Public/Private channel separation
+  - Private channel access control
+  - Channel type-based filtering
 - Workspace invitation flow
+  - Invitation token generation and validation
+  - Invitation acceptance API
 - Permission-based API access control
+  - `@PreAuthorize` annotation on endpoints
+  - Workspace/channel membership validation
 - **Deliverable**: "Create multiple workspaces and control channel access by permissions"
+
+**Note**: Basic Workspace/Channel CRUD APIs are already implemented in v0.1.
 
 ### v0.3 - Distributed Messaging (Advanced)
 **Goal**: Scalable multi-server architecture
