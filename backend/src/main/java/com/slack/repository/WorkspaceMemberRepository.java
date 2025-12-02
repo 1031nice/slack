@@ -1,9 +1,9 @@
 package com.slack.repository;
 
 import com.slack.domain.workspace.WorkspaceMember;
-import com.slack.domain.workspace.WorkspaceRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, Long> {
@@ -16,5 +16,10 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
      * 특정 workspace와 user로 WorkspaceMember를 조회합니다.
      */
     Optional<WorkspaceMember> findByWorkspaceIdAndUserId(Long workspaceId, Long userId);
+
+    /**
+     * 특정 user가 멤버로 있는 모든 WorkspaceMember를 조회합니다.
+     */
+    List<WorkspaceMember> findByUserId(Long userId);
 }
 
