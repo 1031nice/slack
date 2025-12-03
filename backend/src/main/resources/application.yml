@@ -27,6 +27,13 @@ spring:
         jwt:
           issuer-uri: http://localhost:8081
           jwk-set-uri: http://localhost:8081/oauth2/jwks
+  
+  # Redis configuration for Pub/Sub messaging
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
 
 springdoc:
   api-docs:

@@ -39,6 +39,9 @@ class WebSocketMessageServiceTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Mock
+    private RedisMessagePublisher redisMessagePublisher;
+
+    @Mock
     private Authentication authentication;
 
     @Mock
@@ -110,7 +113,11 @@ class WebSocketMessageServiceTest {
         assertThat(capturedRequest.getUserId()).isEqualTo(1L);
         assertThat(capturedRequest.getContent()).isEqualTo("Test message");
 
-        // 브로드캐스팅 확인
+        // Redis 발행 확인
+        ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
+        verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
+
+        // 로컬 브로드캐스팅 확인
         ArgumentCaptor<WebSocketMessage> messageCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(messagingTemplate, times(1)).convertAndSend(
                 eq("/topic/channel.1"),
@@ -144,6 +151,7 @@ class WebSocketMessageServiceTest {
 
         verify(userService, never()).findByAuthUserId(anyString());
         verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(WebSocketMessage.class));
     }
 
@@ -197,6 +205,7 @@ class WebSocketMessageServiceTest {
 
         verify(userService, times(1)).findByAuthUserId("auth-123");
         verify(messageService, times(1)).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(WebSocketMessage.class));
     }
 
@@ -253,6 +262,11 @@ class WebSocketMessageServiceTest {
         webSocketMessageService.broadcastToChannel(1L, message);
 
         // then
+        // Redis로 메시지 발행 확인
+        ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
+        verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
+        
+        // 로컬 WebSocket 클라이언트에게 브로드캐스팅 확인
         verify(messagingTemplate, times(1)).convertAndSend(
                 eq("/topic/channel.1"),
                 any(WebSocketMessage.class)

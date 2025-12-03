@@ -19,6 +19,7 @@ public class WebSocketMessageService {
     private final MessageService messageService;
     private final UserService userService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final RedisMessagePublisher redisMessagePublisher;
 
     /**
      * WebSocket을 통해 받은 메시지를 처리하고 브로드캐스팅합니다.
@@ -87,11 +88,17 @@ public class WebSocketMessageService {
 
     /**
      * 메시지를 특정 채널의 모든 구독자에게 브로드캐스팅합니다.
+     * Redis Pub/Sub을 통해 다른 서버에도 메시지를 전달합니다.
      * 
      * @param channelId 채널 ID
      * @param message 브로드캐스팅할 메시지
      */
     public void broadcastToChannel(Long channelId, WebSocketMessage message) {
+        // Redis로 메시지 발행 (다른 서버들이 수신)
+        redisMessagePublisher.publish(message);
+        
+        // 로컬 WebSocket 클라이언트에게도 브로드캐스팅
+        // (RedisMessageSubscriber가 다른 서버에서 발행한 메시지를 수신하여 처리)
         String destination = "/topic/channel." + channelId;
         messagingTemplate.convertAndSend(destination, message);
     }
