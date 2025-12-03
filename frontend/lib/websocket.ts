@@ -4,12 +4,14 @@ import SockJS from 'sockjs-client';
 const WS_URL = 'http://localhost:8080/ws';
 
 export interface WebSocketMessage {
-  type: 'MESSAGE' | 'JOIN' | 'LEAVE' | 'ERROR';
+  type: 'MESSAGE' | 'JOIN' | 'LEAVE' | 'ERROR' | 'ACK' | 'RESEND';
   channelId?: number;
   messageId?: number;
   userId?: number;
   content?: string;
   createdAt?: string;
+  sequenceNumber?: number;
+  ackId?: string;
 }
 
 export class WebSocketError extends Error {
@@ -95,6 +97,12 @@ export class WebSocketClient {
       (message) => {
         try {
           const data: WebSocketMessage = JSON.parse(message.body);
+          
+          // MESSAGE 타입인 경우 ACK 전송
+          if (data.type === 'MESSAGE' && data.sequenceNumber !== undefined) {
+            this.sendAck(data.sequenceNumber, data.messageId);
+          }
+          
           callback(data);
         } catch (error) {
           console.error('Error parsing message:', error);
@@ -105,6 +113,35 @@ export class WebSocketClient {
     return () => {
       subscription.unsubscribe();
     };
+  }
+
+  /**
+   * 메시지 수신 확인 (ACK)을 서버에 전송합니다.
+   * 
+   * @param sequenceNumber 수신한 메시지의 시퀀스 번호
+   * @param messageId 수신한 메시지의 ID
+   */
+  private sendAck(sequenceNumber: number, messageId?: number) {
+    if (!this.client || !this.client.connected) {
+      console.error('WebSocket not connected, cannot send ACK');
+      return;
+    }
+
+    try {
+      const ackMessage: WebSocketMessage = {
+        type: 'ACK',
+        sequenceNumber,
+        messageId,
+        ackId: `ack-${Date.now()}-${sequenceNumber}`, // 고유한 ACK ID 생성
+      };
+
+      this.client.publish({
+        destination: '/app/message.ack',
+        body: JSON.stringify(ackMessage),
+      });
+    } catch (error) {
+      console.error('Error sending ACK:', error);
+    }
   }
 
   sendMessage(channelId: number, content: string): boolean {

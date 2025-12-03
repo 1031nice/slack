@@ -20,6 +20,7 @@ public class WebSocketMessageService {
     private final UserService userService;
     private final SimpMessagingTemplate messagingTemplate;
     private final RedisMessagePublisher redisMessagePublisher;
+    private final MessageSequenceService sequenceService;
 
     /**
      * WebSocket을 통해 받은 메시지를 처리하고 브로드캐스팅합니다.
@@ -50,6 +51,9 @@ public class WebSocketMessageService {
         // DB에 메시지 저장
         MessageResponse savedMessage = messageService.createMessage(message.getChannelId(), createRequest);
 
+        // 시퀀스 번호 생성
+        Long sequenceNumber = sequenceService.getNextSequenceNumber();
+
         // WebSocket 메시지 생성
         WebSocketMessage response = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.MESSAGE)
@@ -58,6 +62,7 @@ public class WebSocketMessageService {
                 .userId(savedMessage.getUserId())
                 .content(savedMessage.getContent())
                 .createdAt(savedMessage.getCreatedAt().toString())
+                .sequenceNumber(sequenceNumber)
                 .build();
 
         // 해당 채널의 모든 구독자에게 브로드캐스팅
@@ -101,6 +106,26 @@ public class WebSocketMessageService {
         // (RedisMessageSubscriber가 다른 서버에서 발행한 메시지를 수신하여 처리)
         String destination = "/topic/channel." + channelId;
         messagingTemplate.convertAndSend(destination, message);
+    }
+
+    /**
+     * ACK 메시지를 처리합니다.
+     * 클라이언트가 메시지를 수신했음을 확인합니다.
+     * 
+     * @param message ACK 메시지
+     * @param authentication 인증 정보
+     */
+    public void handleAck(WebSocketMessage message, Authentication authentication) {
+        if (message.getType() != WebSocketMessage.MessageType.ACK) {
+            log.warn("Received non-ACK message in handleAck: type={}", message.getType());
+            return;
+        }
+
+        log.debug("Received ACK: ackId={}, sequenceNumber={}", 
+                message.getAckId(), message.getSequenceNumber());
+        
+        // TODO: v0.3 후속 작업에서 ACK 기반 재전송 로직 구현
+        // 현재는 ACK를 받았다는 것만 로깅
     }
 
     /**
