@@ -30,6 +30,7 @@ public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserService userService;
+    private final ChannelService channelService;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
@@ -49,6 +50,9 @@ public class WorkspaceService {
                 .role(WorkspaceRole.OWNER)
                 .build();
         workspaceMemberRepository.save(workspaceMember);
+        
+        // 워크스페이스 생성 시 기본 채널 생성
+        channelService.findOrCreateDefaultChannel(saved, owner.getId());
         
         return toResponse(saved);
     }

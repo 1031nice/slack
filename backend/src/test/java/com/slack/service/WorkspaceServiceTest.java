@@ -38,6 +38,9 @@ class WorkspaceServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private ChannelService channelService;
+
     @InjectMocks
     private WorkspaceService workspaceService;
 
@@ -77,6 +80,7 @@ class WorkspaceServiceTest {
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(workspaceRepository.save(any(Workspace.class))).thenReturn(testWorkspace);
         when(workspaceMemberRepository.save(any(WorkspaceMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(channelService.findOrCreateDefaultChannel(any(Workspace.class), anyLong())).thenAnswer(invocation -> null);
 
         // when
         WorkspaceResponse result = workspaceService.createWorkspace(request, "auth-123");
@@ -88,6 +92,7 @@ class WorkspaceServiceTest {
         verify(userService, times(1)).findByAuthUserId("auth-123");
         verify(workspaceRepository, times(1)).save(any(Workspace.class));
         verify(workspaceMemberRepository, times(1)).save(any(WorkspaceMember.class));
+        verify(channelService, times(1)).findOrCreateDefaultChannel(any(Workspace.class), eq(1L));
     }
 
     @Test
