@@ -45,6 +45,11 @@ springdoc:
     config-url: /api-docs/swagger-config
     url: /api-docs
 
+# Server port is configured via profile-specific files:
+# - application-8080.yml (default)
+# - application-8081.yml
+# - application-8082.yml
+# Use --spring.profiles.active=8081 or 8082 to run on different ports
 server:
   port: 8080
 
