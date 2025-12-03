@@ -43,6 +43,9 @@ class WebSocketMessageServiceTest {
 
     @Mock
     private MessageSequenceService sequenceService;
+    
+    @Mock
+    private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
 
     @Mock
     private Authentication authentication;
@@ -100,7 +103,7 @@ class WebSocketMessageServiceTest {
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenReturn(testMessageResponse);
-        when(sequenceService.getNextSequenceNumber()).thenReturn(1L);
+        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
         // when
         WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);

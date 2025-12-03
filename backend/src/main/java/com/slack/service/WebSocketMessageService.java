@@ -51,8 +51,8 @@ public class WebSocketMessageService {
         // DB에 메시지 저장
         MessageResponse savedMessage = messageService.createMessage(message.getChannelId(), createRequest);
 
-        // 시퀀스 번호 생성
-        Long sequenceNumber = sequenceService.getNextSequenceNumber();
+        // 채널별 시퀀스 번호 생성
+        Long sequenceNumber = sequenceService.getNextSequenceNumber(message.getChannelId());
 
         // WebSocket 메시지 생성
         WebSocketMessage response = WebSocketMessage.builder()
