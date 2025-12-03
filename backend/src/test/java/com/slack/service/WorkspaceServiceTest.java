@@ -2,8 +2,10 @@ package com.slack.service;
 
 import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
+import com.slack.domain.workspace.WorkspaceMember;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
+import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,7 +33,13 @@ class WorkspaceServiceTest {
     private WorkspaceRepository workspaceRepository;
 
     @Mock
+    private WorkspaceMemberRepository workspaceMemberRepository;
+
+    @Mock
     private UserService userService;
+
+    @Mock
+    private ChannelService channelService;
 
     @InjectMocks
     private WorkspaceService workspaceService;
@@ -67,11 +75,12 @@ class WorkspaceServiceTest {
         // given
         WorkspaceCreateRequest request = WorkspaceCreateRequest.builder()
                 .name("New Workspace")
-                .ownerId(1L)
                 .build();
 
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(workspaceRepository.save(any(Workspace.class))).thenReturn(testWorkspace);
+        when(workspaceMemberRepository.save(any(WorkspaceMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(channelService.findOrCreateDefaultChannel(any(Workspace.class), anyLong())).thenAnswer(invocation -> null);
 
         // when
         WorkspaceResponse result = workspaceService.createWorkspace(request, "auth-123");
@@ -82,6 +91,8 @@ class WorkspaceServiceTest {
         assertThat(result.getOwnerId()).isEqualTo(1L);
         verify(userService, times(1)).findByAuthUserId("auth-123");
         verify(workspaceRepository, times(1)).save(any(Workspace.class));
+        verify(workspaceMemberRepository, times(1)).save(any(WorkspaceMember.class));
+        verify(channelService, times(1)).findOrCreateDefaultChannel(any(Workspace.class), eq(1L));
     }
 
     @Test
@@ -141,8 +152,17 @@ class WorkspaceServiceTest {
                 .build();
         setField(otherWorkspace, "id", 3L);
 
+        WorkspaceMember member1 = WorkspaceMember.builder()
+                .workspace(workspace1)
+                .user(testUser)
+                .build();
+        WorkspaceMember member2 = WorkspaceMember.builder()
+                .workspace(workspace2)
+                .user(testUser)
+                .build();
+
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
-        when(workspaceRepository.findAll()).thenReturn(Arrays.asList(workspace1, workspace2, otherWorkspace));
+        when(workspaceMemberRepository.findByUserId(1L)).thenReturn(Arrays.asList(member1, member2));
 
         // when
         List<WorkspaceResponse> result = workspaceService.getUserWorkspaces("auth-123");
@@ -152,7 +172,7 @@ class WorkspaceServiceTest {
         assertThat(result).extracting(WorkspaceResponse::getName)
                 .containsExactlyInAnyOrder("Workspace 1", "Workspace 2");
         verify(userService, times(1)).findByAuthUserId("auth-123");
-        verify(workspaceRepository, times(1)).findAll();
+        verify(workspaceMemberRepository, times(1)).findByUserId(1L);
     }
 }
 

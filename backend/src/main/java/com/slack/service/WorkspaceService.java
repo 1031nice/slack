@@ -2,9 +2,12 @@ package com.slack.service;
 
 import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
+import com.slack.domain.workspace.WorkspaceMember;
+import com.slack.domain.workspace.WorkspaceRole;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
 import com.slack.exception.WorkspaceNotFoundException;
+import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +28,9 @@ import java.util.stream.Collectors;
 public class WorkspaceService {
 
     private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserService userService;
+    private final ChannelService channelService;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
@@ -37,6 +42,18 @@ public class WorkspaceService {
                 .build();
         
         Workspace saved = workspaceRepository.save(workspace);
+        
+        // 워크스페이스 생성자(owner)를 WorkspaceMember로 추가
+        WorkspaceMember workspaceMember = WorkspaceMember.builder()
+                .workspace(saved)
+                .user(owner)
+                .role(WorkspaceRole.OWNER)
+                .build();
+        workspaceMemberRepository.save(workspaceMember);
+        
+        // 워크스페이스 생성 시 기본 채널 생성
+        channelService.findOrCreateDefaultChannel(saved, owner.getId());
+        
         return toResponse(saved);
     }
 
@@ -48,8 +65,10 @@ public class WorkspaceService {
 
     public List<WorkspaceResponse> getUserWorkspaces(String authUserId) {
         User user = userService.findByAuthUserId(authUserId);
-        return workspaceRepository.findAll().stream()
-                .filter(workspace -> workspace.getOwner().getId().equals(user.getId()))
+        // 멤버십 기반으로 워크스페이스 조회 (v0.2)
+        List<WorkspaceMember> memberships = workspaceMemberRepository.findByUserId(user.getId());
+        return memberships.stream()
+                .map(WorkspaceMember::getWorkspace)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
