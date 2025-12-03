@@ -88,10 +88,12 @@ export default function Home() {
     if (!selectedWorkspaceId || !token) {
       setChannels([]);
       setSelectedChannelId(null);
+      setMessages([]); // 워크스페이스가 없으면 메시지도 초기화
       return;
     }
 
     setError(null);
+    setMessages([]); // 워크스페이스가 변경되면 메시지 초기화
 
     fetchChannels(selectedWorkspaceId, token)
       .then((channels) => {
@@ -118,6 +120,7 @@ export default function Home() {
         }
         setChannels([]);
         setSelectedChannelId(null);
+        setMessages([]); // 에러 발생 시 메시지도 초기화
       });
   }, [token, selectedWorkspaceId]);
 
