@@ -28,6 +28,8 @@ export class WebSocketError extends Error {
 export class WebSocketClient {
   private client: Client | null = null;
   private token: string | null = null;
+  // 채널별 마지막 수신한 시퀀스 번호 추적
+  private lastSequenceNumbers: Map<number, number> = new Map();
 
   connect(token: string, onConnect: () => void, onError: (error: WebSocketError) => void) {
     this.token = token;
@@ -46,6 +48,8 @@ export class WebSocketClient {
       onConnect: () => {
         console.log('WebSocket connected');
         onConnect();
+        // 재연결 시 모든 구독 중인 채널에 대해 누락 메시지 요청
+        this.requestMissedMessages();
       },
       onStompError: (frame) => {
         console.error('STOMP error:', frame);
@@ -98,8 +102,14 @@ export class WebSocketClient {
         try {
           const data: WebSocketMessage = JSON.parse(message.body);
           
-          // MESSAGE 타입인 경우 ACK 전송
-          if (data.type === 'MESSAGE' && data.sequenceNumber !== undefined) {
+          // MESSAGE 타입인 경우 ACK 전송 및 시퀀스 번호 업데이트
+          if (data.type === 'MESSAGE' && data.sequenceNumber !== undefined && data.channelId !== undefined) {
+            // 마지막 시퀀스 번호 업데이트
+            const currentLast = this.lastSequenceNumbers.get(data.channelId) || 0;
+            if (data.sequenceNumber > currentLast) {
+              this.lastSequenceNumbers.set(data.channelId, data.sequenceNumber);
+            }
+            
             this.sendAck(data.sequenceNumber, data.messageId);
           }
           
@@ -165,6 +175,48 @@ export class WebSocketClient {
     } catch (error) {
       console.error('Error sending message:', error);
       return false;
+    }
+  }
+
+  /**
+   * 재연결 시 누락된 메시지를 요청합니다.
+   * 모든 구독 중인 채널에 대해 마지막 수신한 시퀀스 번호 이후의 메시지를 요청합니다.
+   */
+  private requestMissedMessages() {
+    if (!this.client || !this.client.connected) {
+      return;
+    }
+
+    // 모든 구독 중인 채널에 대해 누락 메시지 요청
+    this.lastSequenceNumbers.forEach((lastSequence, channelId) => {
+      try {
+        const resendMessage: WebSocketMessage = {
+          type: 'RESEND',
+          channelId,
+          sequenceNumber: lastSequence,
+        };
+
+        this.client!.publish({
+          destination: '/app/message.resend',
+          body: JSON.stringify(resendMessage),
+        });
+        
+        console.log(`Requested missed messages for channel ${channelId} after sequence ${lastSequence}`);
+      } catch (error) {
+        console.error(`Error requesting missed messages for channel ${channelId}:`, error);
+      }
+    });
+  }
+
+  /**
+   * 채널 구독을 시작할 때 호출하여 초기 시퀀스 번호를 설정합니다.
+   * 
+   * @param channelId 채널 ID
+   * @param initialSequenceNumber 초기 시퀀스 번호 (없으면 0)
+   */
+  public setInitialSequenceNumber(channelId: number, initialSequenceNumber: number = 0) {
+    if (!this.lastSequenceNumbers.has(channelId)) {
+      this.lastSequenceNumbers.set(channelId, initialSequenceNumber);
     }
   }
 
