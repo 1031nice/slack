@@ -30,14 +30,39 @@ cd "$AUTH_PLATFORM_DIR"
 # Return to slack directory
 cd "$SLACK_DIR"
 
+# Clean up any existing containers before starting (let docker-compose handle networks)
+echo "🧹 Cleaning up any existing Docker containers..."
+DOCKER_COMPOSE_CMD=""
+if docker info >/dev/null 2>&1; then
+    if command -v docker-compose >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    fi
+    
+    if [ -n "$DOCKER_COMPOSE_CMD" ]; then
+        # Just run down - docker-compose will handle networks automatically
+        # DO NOT manually remove networks to avoid Docker engine issues
+        $DOCKER_COMPOSE_CMD down --remove-orphans 2>/dev/null || true
+    fi
+fi
+
 # Start Slack infrastructure
 echo "📦 Starting Slack infrastructure (PostgreSQL, Redis)..."
-docker-compose up -d
+if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+    echo "❌ Error: Docker Compose not found"
+    exit 1
+fi
+$DOCKER_COMPOSE_CMD up -d
 
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL to be ready..."
 COUNTER=0
-until docker-compose exec -T postgres pg_isready -U slack_user -d slack_db 2>/dev/null; do
+DOCKER_COMPOSE_CMD="docker-compose"
+if ! command -v docker-compose >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+fi
+until $DOCKER_COMPOSE_CMD exec -T postgres pg_isready -U slack_user -d slack_db 2>/dev/null; do
     sleep 1
     COUNTER=$((COUNTER + 1))
     if [ $COUNTER -gt 30 ]; then

@@ -1,5 +1,6 @@
 package com.slack.controller;
 
+import com.slack.application.UserRegistrationService;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
 import com.slack.service.WorkspaceService;
@@ -23,6 +24,7 @@ import static com.slack.controller.ResponseHelper.ok;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+    private final UserRegistrationService userRegistrationService;
 
     @PostMapping
     public ResponseEntity<WorkspaceResponse> createWorkspace(
@@ -36,8 +38,10 @@ public class WorkspaceController {
     @GetMapping
     public ResponseEntity<List<WorkspaceResponse>> getUserWorkspaces(
             @AuthenticationPrincipal Jwt jwt) {
-        String authUserId = JwtUtils.extractAuthUserId(jwt);
-        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(authUserId);
+        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
+        // 사용자가 없으면 자동으로 생성
+        userRegistrationService.findOrCreateUser(userInfo.authUserId(), userInfo.email(), userInfo.name());
+        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(userInfo.authUserId());
         return ok(workspaces);
     }
 

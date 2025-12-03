@@ -25,9 +25,9 @@ Learning-focused Slack clone project emphasizing distributed system design, real
 
 ## Version Roadmap
 
-**Current Version**: v0.1 (In Progress) 🚧
+**Current Version**: v0.2.0 ✅
 
-### v0.1 - MVP (Minimum Viable Product) 🚧
+### v0.1 - MVP (Minimum Viable Product) ✅
 **Goal**: Single workspace, basic real-time messaging
 - Basic CRUD APIs (User, Workspace, Channel, Message)
 - Single-server WebSocket messaging
