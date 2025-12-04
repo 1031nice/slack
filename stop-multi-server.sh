@@ -126,7 +126,7 @@ kill_port 8080 "Backend Server 1"
 kill_port 8081 "Backend Server 2"
 kill_port 8082 "Backend Server 3"
 kill_port 80 "Nginx Load Balancer"
-# Note: PostgreSQL (5432) and Redis (6379) are managed by Docker,
+# Note: PostgreSQL (5432) and Redis (6380) are managed by Docker,
 # so we don't kill them here to avoid affecting Docker engine
 
 # Stop Auth Platform
