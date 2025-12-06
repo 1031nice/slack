@@ -64,7 +64,7 @@ Learning-focused Slack clone project emphasizing distributed system design, real
 **Goal**: Scalable multi-server architecture
 **Prerequisites**: v0.1, v0.2 completed + single-server load testing to understand limitations
 - Redis Pub/Sub for server-to-server communication
-- Local setup with 3 servers (ports 8080, 8081, 8082)
+- Local setup with 3 servers (ports 9000, 9001, 9002)
 - Nginx load balancer configuration
 - Message delivery guarantee (ACK mechanism)
 - Reconnection handling and missed message recovery
@@ -166,7 +166,7 @@ npm install
 npm run dev
 ```
 
-The backend will be available at `http://localhost:8080`  
+The backend will be available at `http://localhost:9000`
 The frontend will be available at `http://localhost:3000`
 
 ## Project Structure
@@ -196,8 +196,8 @@ slack/
 
 ## API Documentation
 
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **OpenAPI Spec**: http://localhost:8080/api-docs
+- **Swagger UI**: http://localhost:9000/swagger-ui.html
+- **OpenAPI Spec**: http://localhost:9000/api-docs
 - **API Specification File**: `/backend/src/main/resources/api/openapi.yaml`
 
 ## Core Features & Learning Goals
@@ -254,9 +254,22 @@ slack/
 ### v0.2
 (To be written after completion)
 
-### v0.3
-(To be written after completion)
-- Scaling verification: [actual vs expected results]
+### v0.3 - Distributed Messaging
+
+**Performance Results**: See [PERFORMANCE_BENCHMARKS.md](./PERFORMANCE_BENCHMARKS.md)
+
+#### Issue: Performance Test Failing with Invalid JWT Token
+
+**Problem**: Performance tests showed 0 messages received despite successful connections. Backend logs showed `BadJwtException: Signed JWT rejected: Another algorithm expected, or no matching key(s) found`
+
+**Root Cause**: OAuth2 server generates new RSA key pairs on each restart (stored in memory, not persisted). JWT tokens are signed with private keys, so when the OAuth2 server restarts, all previously issued tokens become invalid.
+
+**Solution**: Auto-regenerate test token at the start of performance tests
+- Modified `scripts/run-performance-test.sh` to call `scripts/generate-test-token.sh` automatically
+- Token is regenerated before each test run, ensuring it's always valid regardless of OAuth2 server restarts
+- `.env.perf-test` is automatically updated with the fresh token
+
+**Key Insight**: For development environments where OAuth2 server keys are ephemeral, test automation should regenerate tokens rather than reusing cached ones. This prevents cryptic authentication failures that appear as application bugs.
 
 ### v0.4
 (To be written after completion)

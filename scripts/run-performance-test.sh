@@ -79,6 +79,31 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 echo -e "${GREEN}=== v0.3 Performance Test Runner ===${NC}"
 echo ""
+
+# Regenerate token to ensure it's valid (OAuth2 server may have restarted)
+echo -e "${YELLOW}Regenerating test token...${NC}"
+if [ -f "$SCRIPT_DIR/generate-test-token.sh" ]; then
+    TOKEN_OUTPUT=$("$SCRIPT_DIR/generate-test-token.sh" 2>&1)
+    # Extract token from the output (line starting with "Token:")
+    NEW_TOKEN=$(echo "$TOKEN_OUTPUT" | grep "^Token:" | awk '{print $2}')
+    if [ -n "$NEW_TOKEN" ]; then
+        export TOKEN="$NEW_TOKEN"
+        # Update .env.perf-test with new token
+        sed -i.bak "s|^TOKEN=.*|TOKEN=$NEW_TOKEN|" "$PROJECT_ROOT/.env.perf-test"
+        echo -e "${GREEN}✓ Token regenerated successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Could not extract new token, using existing TOKEN from environment${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ generate-test-token.sh not found, using existing TOKEN from environment${NC}"
+fi
+echo ""
+
+if [ -z "$TOKEN" ]; then
+    echo -e "${RED}Error: TOKEN is required. Set it in .env.perf-test or as environment variable.${NC}"
+    exit 1
+fi
+
 echo "Configuration:"
 echo "  Token: ${TOKEN:0:20}..."
 echo "  Channel ID: $CHANNEL_ID"
@@ -86,11 +111,6 @@ echo "  Connections: $CONNECTIONS"
 echo "  Duration: ${DURATION}s"
 echo "  Messages/sec: $MESSAGES_PER_SEC"
 echo ""
-
-if [ -z "$TOKEN" ]; then
-    echo -e "${RED}Error: TOKEN is required. Set it in .env.perf-test or as environment variable.${NC}"
-    exit 1
-fi
 
 # Check if Node.js dependencies are installed
 if [ ! -d "$SCRIPT_DIR/node_modules/@stomp" ]; then
