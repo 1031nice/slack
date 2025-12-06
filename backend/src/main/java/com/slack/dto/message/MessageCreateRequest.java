@@ -20,5 +20,7 @@ public class MessageCreateRequest {
     @NotBlank(message = "Message content is required")
     @Size(min = 1, message = "Message content must not be empty")
     private String content;
+    
+    private Long sequenceNumber; // 메시지 순서 보장을 위한 시퀀스 번호
 }
 

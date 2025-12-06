@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# Slack App Complete Stop Script
-# This script stops all services: Slack services + Auth Platform
-# Also kills any processes using the required ports
+# Multi-Server Stop Script for v0.3
+# Stops all 3 backend servers and related services
 
 # Don't exit on error - we want to clean up as much as possible
 set +e
@@ -10,7 +9,7 @@ set +e
 SLACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTH_PLATFORM_DIR="$SLACK_DIR/../auth-platform"
 
-echo "🛑 Stopping Slack App and all dependencies..."
+echo "🛑 Stopping Multi-Server Slack App..."
 
 cd "$SLACK_DIR"
 
@@ -65,22 +64,26 @@ kill_port() {
     fi
 }
 
-# Stop processes by PID files first (graceful shutdown)
-if [ -f "slack-backend.pid" ]; then
-    BACKEND_PID=$(cat slack-backend.pid)
-    if ps -p $BACKEND_PID > /dev/null 2>&1; then
-        echo "⚙️  Stopping Slack Backend (PID: $BACKEND_PID)..."
-        kill $BACKEND_PID 2>/dev/null || true
-        sleep 2
-        # Force kill if still running
+# Stop backend servers by PID files
+for port in 9000 9001 9002; do
+    PID_FILE="slack-backend-${port}.pid"
+    if [ -f "$PID_FILE" ]; then
+        BACKEND_PID=$(cat "$PID_FILE")
         if ps -p $BACKEND_PID > /dev/null 2>&1; then
-            kill -9 $BACKEND_PID 2>/dev/null || true
+            echo "⚙️  Stopping Backend Server (port ${port}, PID: $BACKEND_PID)..."
+            kill $BACKEND_PID 2>/dev/null || true
+            sleep 2
+            # Force kill if still running
+            if ps -p $BACKEND_PID > /dev/null 2>&1; then
+                kill -9 $BACKEND_PID 2>/dev/null || true
+            fi
+            echo "✅ Backend Server (port ${port}) stopped"
         fi
-        echo "✅ Slack Backend stopped"
+        rm -f "$PID_FILE"
     fi
-    rm -f slack-backend.pid
-fi
+done
 
+# Stop frontend
 if [ -f "slack-frontend.pid" ]; then
     FRONTEND_PID=$(cat slack-frontend.pid)
     if ps -p $FRONTEND_PID > /dev/null 2>&1; then
@@ -97,10 +100,8 @@ if [ -f "slack-frontend.pid" ]; then
 fi
 
 # Stop Slack infrastructure (Docker containers) FIRST
-# This ensures containers are stopped gracefully before killing ports
 echo ""
 echo "📦 Stopping Slack infrastructure (Docker containers)..."
-# Check if Docker daemon is running before attempting to stop containers
 if docker info >/dev/null 2>&1; then
     DOCKER_COMPOSE_CMD=""
     if command -v docker-compose >/dev/null 2>&1; then
@@ -114,25 +115,17 @@ if docker info >/dev/null 2>&1; then
         # DO NOT use --volumes to avoid data loss
         # DO NOT manually remove networks - let docker-compose handle it to avoid Docker engine issues
         $DOCKER_COMPOSE_CMD down --remove-orphans 2>/dev/null || echo "⚠️  docker-compose down failed, continuing..."
-        
-        # That's it - don't manually touch networks
-        # If networks remain, they're likely in use by other containers or Docker itself
-        # Manually removing them can cause Docker engine to become unstable
-    else
-        echo "⚠️  Docker Compose not found, skipping container shutdown"
     fi
-else
-    echo "⚠️  Docker daemon is not running, skipping container shutdown"
 fi
 
 # Kill processes by port (force cleanup) AFTER containers are stopped
-# Only kill application ports, not Docker-managed ports
 echo ""
 echo "🔪 Force killing processes on application ports..."
 kill_port 3000 "Frontend"
-kill_port 9000 "Backend API"
-kill_port 8081 "OAuth2 Server"
-kill_port 8082 "Resource Server"
+kill_port 9000 "Backend Server 1"
+kill_port 9001 "Backend Server 2"
+kill_port 9002 "Backend Server 3"
+kill_port 80 "Nginx Load Balancer"
 # Note: PostgreSQL (5432) and Redis (6380) are managed by Docker,
 # so we don't kill them here to avoid affecting Docker engine
 
@@ -151,8 +144,9 @@ echo ""
 echo "🎉 All services stopped successfully!"
 echo ""
 echo "🧹 Clean up:"
-echo "   - Log files (slack-backend.log, slack-frontend.log) are preserved"
+echo "   - Log files (slack-backend-*.log, slack-frontend.log) are preserved"
 echo "   - PID files have been removed"
 echo "   - All required ports have been cleared"
 echo ""
-echo "💡 To remove logs: rm -f *.log"
+echo "💡 To remove logs: rm -f slack-backend-*.log slack-frontend.log"
+

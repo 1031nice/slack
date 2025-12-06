@@ -26,6 +26,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
     
+    // Redis for Pub/Sub messaging
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
     runtimeOnly 'org.postgresql:postgresql'
     
     implementation 'org.flywaydb:flyway-core:10.10.0'

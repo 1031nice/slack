@@ -39,6 +39,7 @@ public class MessageService {
                 .user(user)
                 .content(request.getContent())
                 .parentMessage(null) // v0.1에서는 스레드 미지원
+                .sequenceNumber(request.getSequenceNumber()) // 시퀀스 번호 저장
                 .build();
         
         Message saved = messageRepository.save(message);
@@ -61,6 +62,21 @@ public class MessageService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 특정 채널에서 시퀀스 번호 이후의 메시지를 조회합니다.
+     * 재연결 시 누락된 메시지를 복구하기 위해 사용됩니다.
+     * 
+     * @param channelId 채널 ID
+     * @param afterSequenceNumber 이 시퀀스 번호 이후의 메시지 조회
+     * @return 시퀀스 번호 순서대로 정렬된 메시지 목록
+     */
+    public List<MessageResponse> getMessagesAfterSequence(Long channelId, Long afterSequenceNumber) {
+        List<Message> messages = messageRepository.findMessagesAfterSequence(channelId, afterSequenceNumber);
+        return messages.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
     private MessageResponse toResponse(Message message) {
         return MessageResponse.builder()
                 .id(message.getId())
@@ -70,6 +86,7 @@ public class MessageService {
                 .parentMessageId(message.getParentMessage() != null ? message.getParentMessage().getId() : null)
                 .createdAt(message.getCreatedAt())
                 .updatedAt(message.getUpdatedAt())
+                .sequenceNumber(message.getSequenceNumber())
                 .build();
     }
 }

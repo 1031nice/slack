@@ -27,6 +27,13 @@ spring:
         jwt:
           issuer-uri: http://localhost:8081
           jwk-set-uri: http://localhost:8081/oauth2/jwks
+  
+  # Redis configuration for Pub/Sub messaging
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 2000ms
 
 springdoc:
   api-docs:
@@ -38,8 +45,14 @@ springdoc:
     config-url: /api-docs/swagger-config
     url: /api-docs
 
+# Server port is configured via profile-specific files:
+# - application-9000.yml (default)
+# - application-9001.yml
+# - application-9002.yml
+# Use --spring.profiles.active=9001 or 9002 to run on different ports
 server:
-  port: 8080
+  port: 9000
+  address: 0.0.0.0  # 모든 네트워크 인터페이스에 바인딩
 
 # Actuator Configuration
 management:

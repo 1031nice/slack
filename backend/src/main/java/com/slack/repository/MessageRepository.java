@@ -16,5 +16,22 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
         @Param("beforeId") Long beforeId,
         org.springframework.data.domain.Pageable pageable
     );
+
+    /**
+     * 특정 채널에서 시퀀스 번호 이후의 메시지를 조회합니다.
+     * 재연결 시 누락된 메시지를 복구하기 위해 사용됩니다.
+     * 
+     * @param channelId 채널 ID
+     * @param afterSequenceNumber 이 시퀀스 번호 이후의 메시지 조회
+     * @return 시퀀스 번호 순서대로 정렬된 메시지 목록
+     */
+    @Query("SELECT m FROM Message m WHERE m.channel.id = :channelId " +
+           "AND m.sequenceNumber IS NOT NULL " +
+           "AND m.sequenceNumber > :afterSequenceNumber " +
+           "ORDER BY m.sequenceNumber ASC")
+    List<Message> findMessagesAfterSequence(
+        @Param("channelId") Long channelId,
+        @Param("afterSequenceNumber") Long afterSequenceNumber
+    );
 }
 

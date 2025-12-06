@@ -48,6 +48,9 @@ public class Message {
 
     private LocalDateTime updatedAt;
 
+    @Column(name = "sequence_number")
+    private Long sequenceNumber;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -60,11 +63,12 @@ public class Message {
     }
 
     @Builder
-    public Message(Channel channel, User user, String content, Message parentMessage) {
+    public Message(Channel channel, User user, String content, Message parentMessage, Long sequenceNumber) {
         this.channel = channel;
         this.user = user;
         this.content = content;
         this.parentMessage = parentMessage;
+        this.sequenceNumber = sequenceNumber;
     }
 }
 

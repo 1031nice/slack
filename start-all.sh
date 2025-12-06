@@ -79,11 +79,13 @@ if [ ! -d "backend" ]; then
 fi
 
 # Start Backend
-echo "⚙️  Starting Slack Backend (port 8080)..."
+echo "⚙️  Starting Slack Backend (port 9000)..."
 cd backend
+export SPRING_PROFILES_ACTIVE=9000
 ./gradlew bootRun > ../slack-backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../slack-backend.pid
+unset SPRING_PROFILES_ACTIVE
 cd ..
 
 # Check if frontend directory exists
@@ -136,7 +138,7 @@ echo "     - OAuth2 Server:   http://localhost:8081"
 echo "     - Resource Server: http://localhost:8082"
 echo "   Slack Services:"
 echo "     - PostgreSQL:      localhost:5432"
-echo "     - Backend API:     http://localhost:8080"
+echo "     - Backend API:     http://localhost:9000"
 echo "     - Frontend App:    http://localhost:3000"
 echo ""
 echo "🌐 Open your browser and go to: http://localhost:3000"
