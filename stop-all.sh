@@ -130,7 +130,7 @@ fi
 echo ""
 echo "🔪 Force killing processes on application ports..."
 kill_port 3000 "Frontend"
-kill_port 8080 "Backend API"
+kill_port 9000 "Backend API"
 kill_port 8081 "OAuth2 Server"
 kill_port 8082 "Resource Server"
 # Note: PostgreSQL (5432) and Redis (6380) are managed by Docker,

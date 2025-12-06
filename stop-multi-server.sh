@@ -65,7 +65,7 @@ kill_port() {
 }
 
 # Stop backend servers by PID files
-for port in 8080 8081 8082; do
+for port in 9000 9001 9002; do
     PID_FILE="slack-backend-${port}.pid"
     if [ -f "$PID_FILE" ]; then
         BACKEND_PID=$(cat "$PID_FILE")
@@ -122,9 +122,9 @@ fi
 echo ""
 echo "🔪 Force killing processes on application ports..."
 kill_port 3000 "Frontend"
-kill_port 8080 "Backend Server 1"
-kill_port 8081 "Backend Server 2"
-kill_port 8082 "Backend Server 3"
+kill_port 9000 "Backend Server 1"
+kill_port 9001 "Backend Server 2"
+kill_port 9002 "Backend Server 3"
 kill_port 80 "Nginx Load Balancer"
 # Note: PostgreSQL (5432) and Redis (6380) are managed by Docker,
 # so we don't kill them here to avoid affecting Docker engine

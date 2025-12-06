@@ -1,7 +1,7 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
-const WS_URL = 'http://localhost:8080/ws';
+const WS_URL = 'http://localhost:9000/ws';
 
 export interface WebSocketMessage {
   type: 'MESSAGE' | 'JOIN' | 'LEAVE' | 'ERROR' | 'ACK' | 'RESEND';
