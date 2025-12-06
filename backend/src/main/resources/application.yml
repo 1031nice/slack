@@ -46,12 +46,13 @@ springdoc:
     url: /api-docs
 
 # Server port is configured via profile-specific files:
-# - application-8080.yml (default)
-# - application-8081.yml
-# - application-8082.yml
-# Use --spring.profiles.active=8081 or 8082 to run on different ports
+# - application-9000.yml (default)
+# - application-9001.yml
+# - application-9002.yml
+# Use --spring.profiles.active=9001 or 9002 to run on different ports
 server:
-  port: 8080
+  port: 9000
+  address: 0.0.0.0  # 모든 네트워크 인터페이스에 바인딩
 
 # Actuator Configuration
 management:

@@ -124,14 +124,7 @@ class WebSocketMessageServiceTest {
         ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
 
-        // 로컬 브로드캐스팅 확인
-        ArgumentCaptor<WebSocketMessage> messageCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
-        verify(messagingTemplate, times(1)).convertAndSend(
-                eq("/topic/channel.1"),
-                messageCaptor.capture()
-        );
-
-        WebSocketMessage broadcastedMessage = messageCaptor.getValue();
+        WebSocketMessage broadcastedMessage = redisCaptor.getValue();
         assertThat(broadcastedMessage.getType()).isEqualTo(WebSocketMessage.MessageType.MESSAGE);
         assertThat(broadcastedMessage.getChannelId()).isEqualTo(1L);
         assertThat(broadcastedMessage.getMessageId()).isEqualTo(100L);
@@ -146,35 +139,43 @@ class WebSocketMessageServiceTest {
     }
 
     @Test
-    @DisplayName("인증 정보가 없으면 예외가 발생한다")
+    @DisplayName("인증 정보가 없으면 test-client를 사용한다")
     void handleIncomingMessage_NoAuthentication() {
         // given
         when(authentication.getPrincipal()).thenReturn(null);
+        when(userService.findByAuthUserId("test-client")).thenReturn(testUser);
+        when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
+                .thenReturn(testMessageResponse);
+        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
-        // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Authentication required");
+        // when
+        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);
 
-        verify(userService, never()).findByAuthUserId(anyString());
-        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
-        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
-        verify(messagingTemplate, never()).convertAndSend(anyString(), any(WebSocketMessage.class));
+        // then
+        verify(userService, times(1)).findByAuthUserId("test-client");
+        verify(messageService, times(1)).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, times(1)).publish(any(WebSocketMessage.class));
+        assertThat(result).isNotNull();
     }
 
     @Test
-    @DisplayName("JWT가 아닌 Principal이면 예외가 발생한다")
+    @DisplayName("JWT가 아닌 Principal이면 test-client를 사용한다")
     void handleIncomingMessage_InvalidPrincipal() {
         // given
         when(authentication.getPrincipal()).thenReturn("invalid-principal");
+        when(userService.findByAuthUserId("test-client")).thenReturn(testUser);
+        when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
+                .thenReturn(testMessageResponse);
+        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
-        // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Authentication required");
+        // when
+        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);
 
-        verify(userService, never()).findByAuthUserId(anyString());
-        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
+        // then
+        verify(userService, times(1)).findByAuthUserId("test-client");
+        verify(messageService, times(1)).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, times(1)).publish(any(WebSocketMessage.class));
+        assertThat(result).isNotNull();
     }
 
     @Test
@@ -269,15 +270,14 @@ class WebSocketMessageServiceTest {
         webSocketMessageService.broadcastToChannel(1L, message);
 
         // then
-        // Redis로 메시지 발행 확인
+        // Redis로 메시지 발행 확인 (RedisMessageSubscriber가 로컬 클라이언트에게 전달)
         ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
         
-        // 로컬 WebSocket 클라이언트에게 브로드캐스팅 확인
-        verify(messagingTemplate, times(1)).convertAndSend(
-                eq("/topic/channel.1"),
-                any(WebSocketMessage.class)
-        );
+        WebSocketMessage publishedMessage = redisCaptor.getValue();
+        assertThat(publishedMessage.getType()).isEqualTo(WebSocketMessage.MessageType.MESSAGE);
+        assertThat(publishedMessage.getChannelId()).isEqualTo(1L);
+        assertThat(publishedMessage.getContent()).isEqualTo("Broadcast message");
     }
 }
 

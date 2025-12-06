@@ -9,9 +9,9 @@ SLACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTH_PLATFORM_DIR="$SLACK_DIR/../auth-platform"
 
 echo "🚀 Starting Multi-Server Slack App (v0.3)..."
-echo "   - Backend Server 1: port 8080"
-echo "   - Backend Server 2: port 8081"
-echo "   - Backend Server 3: port 8082"
+echo "   - Backend Server 1: port 9000"
+echo "   - Backend Server 2: port 9001"
+echo "   - Backend Server 3: port 9002"
 echo "   - Nginx Load Balancer: port 80"
 echo ""
 
@@ -76,34 +76,34 @@ if [ ! -d "backend" ]; then
     exit 1
 fi
 
-# Start Backend Server 1 (port 8080)
+# Start Backend Server 1 (port 9000)
 echo ""
-echo "⚙️  Starting Backend Server 1 (port 8080)..."
+echo "⚙️  Starting Backend Server 1 (port 9000)..."
 cd backend
-export SPRING_PROFILES_ACTIVE=8080
-./gradlew bootRun > ../slack-backend-8080.log 2>&1 &
-BACKEND_8080_PID=$!
-echo $BACKEND_8080_PID > ../slack-backend-8080.pid
+export SPRING_PROFILES_ACTIVE=9000
+./gradlew bootRun > ../slack-backend-9000.log 2>&1 &
+BACKEND_9000_PID=$!
+echo $BACKEND_9000_PID > ../slack-backend-9000.pid
 unset SPRING_PROFILES_ACTIVE
 cd ..
 
-# Start Backend Server 2 (port 8081)
-echo "⚙️  Starting Backend Server 2 (port 8081)..."
+# Start Backend Server 2 (port 9001)
+echo "⚙️  Starting Backend Server 2 (port 9001)..."
 cd backend
-export SPRING_PROFILES_ACTIVE=8081
-./gradlew bootRun > ../slack-backend-8081.log 2>&1 &
-BACKEND_8081_PID=$!
-echo $BACKEND_8081_PID > ../slack-backend-8081.pid
+export SPRING_PROFILES_ACTIVE=9001
+./gradlew bootRun > ../slack-backend-9001.log 2>&1 &
+BACKEND_9001_PID=$!
+echo $BACKEND_9001_PID > ../slack-backend-9001.pid
 unset SPRING_PROFILES_ACTIVE
 cd ..
 
-# Start Backend Server 3 (port 8082)
-echo "⚙️  Starting Backend Server 3 (port 8082)..."
+# Start Backend Server 3 (port 9002)
+echo "⚙️  Starting Backend Server 3 (port 9002)..."
 cd backend
-export SPRING_PROFILES_ACTIVE=8082
-./gradlew bootRun > ../slack-backend-8082.log 2>&1 &
-BACKEND_8082_PID=$!
-echo $BACKEND_8082_PID > ../slack-backend-8082.pid
+export SPRING_PROFILES_ACTIVE=9002
+./gradlew bootRun > ../slack-backend-9002.log 2>&1 &
+BACKEND_9002_PID=$!
+echo $BACKEND_9002_PID > ../slack-backend-9002.pid
 unset SPRING_PROFILES_ACTIVE
 cd ..
 
@@ -131,15 +131,15 @@ cd ..
 
 echo ""
 echo "📝 Process IDs saved:"
-echo "   - Backend 8080: slack-backend-8080.pid (PID: $BACKEND_8080_PID)"
-echo "   - Backend 8081: slack-backend-8081.pid (PID: $BACKEND_8081_PID)"
-echo "   - Backend 8082: slack-backend-8082.pid (PID: $BACKEND_8082_PID)"
+echo "   - Backend 9000: slack-backend-9000.pid (PID: $BACKEND_9000_PID)"
+echo "   - Backend 9001: slack-backend-9001.pid (PID: $BACKEND_9001_PID)"
+echo "   - Backend 9002: slack-backend-9002.pid (PID: $BACKEND_9002_PID)"
 echo "   - Frontend: slack-frontend.pid (PID: $FRONTEND_PID)"
 echo ""
 echo "📊 Logs are written to:"
-echo "   - slack-backend-8080.log"
-echo "   - slack-backend-8081.log"
-echo "   - slack-backend-8082.log"
+echo "   - slack-backend-9000.log"
+echo "   - slack-backend-9001.log"
+echo "   - slack-backend-9002.log"
 echo "   - slack-frontend.log"
 
 # Wait a bit and check if services are starting
@@ -148,22 +148,22 @@ echo "⏳ Waiting for services to start..."
 sleep 10
 
 # Check if all backend servers are running
-if ps -p $BACKEND_8080_PID > /dev/null; then
-    echo "✅ Backend Server 1 (8080) is running (PID: $BACKEND_8080_PID)"
+if ps -p $BACKEND_9000_PID > /dev/null; then
+    echo "✅ Backend Server 1 (9000) is running (PID: $BACKEND_9000_PID)"
 else
-    echo "❌ Backend Server 1 (8080) failed to start"
+    echo "❌ Backend Server 1 (9000) failed to start"
 fi
 
-if ps -p $BACKEND_8081_PID > /dev/null; then
-    echo "✅ Backend Server 2 (8081) is running (PID: $BACKEND_8081_PID)"
+if ps -p $BACKEND_9001_PID > /dev/null; then
+    echo "✅ Backend Server 2 (9001) is running (PID: $BACKEND_9001_PID)"
 else
-    echo "❌ Backend Server 2 (8081) failed to start"
+    echo "❌ Backend Server 2 (9001) failed to start"
 fi
 
-if ps -p $BACKEND_8082_PID > /dev/null; then
-    echo "✅ Backend Server 3 (8082) is running (PID: $BACKEND_8082_PID)"
+if ps -p $BACKEND_9002_PID > /dev/null; then
+    echo "✅ Backend Server 3 (9002) is running (PID: $BACKEND_9002_PID)"
 else
-    echo "❌ Backend Server 3 (8082) failed to start"
+    echo "❌ Backend Server 3 (9002) failed to start"
 fi
 
 if ps -p $FRONTEND_PID > /dev/null; then
@@ -185,9 +185,9 @@ echo "     - PostgreSQL:      localhost:5432"
 echo "     - Redis:           localhost:6380"
 echo "     - Nginx LB:        http://localhost:80"
 echo "   Slack Backend Servers:"
-echo "     - Server 1:        http://localhost:8080"
-echo "     - Server 2:        http://localhost:8081"
-echo "     - Server 3:        http://localhost:8082"
+echo "     - Server 1:        http://localhost:9000"
+echo "     - Server 2:        http://localhost:9001"
+echo "     - Server 3:        http://localhost:9002"
 echo "   Slack Frontend:"
 echo "     - Frontend App:    http://localhost:3000"
 echo ""
@@ -195,9 +195,9 @@ echo "🌐 Access the application via Nginx: http://localhost"
 echo "   (Nginx will load balance requests across 3 backend servers)"
 echo ""
 echo "🔍 To check logs:"
-echo "   tail -f slack-backend-8080.log"
-echo "   tail -f slack-backend-8081.log"
-echo "   tail -f slack-backend-8082.log"
+echo "   tail -f slack-backend-9000.log"
+echo "   tail -f slack-backend-9001.log"
+echo "   tail -f slack-backend-9002.log"
 echo "   tail -f slack-frontend.log"
 echo ""
 echo "🛑 To stop all services, run: ./stop-multi-server.sh"

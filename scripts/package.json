@@ -1,0 +1,14 @@
+{
+  "name": "slack-performance-tests",
+  "version": "1.0.0",
+  "description": "Performance test scripts for Slack v0.3",
+  "private": true,
+  "scripts": {
+    "test": "node performance-test-node.js"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.2.1",
+    "sockjs-client": "^1.6.1"
+  }
+}
+

@@ -1,5 +1,6 @@
 package com.slack.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -20,6 +21,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+@Slf4j
 @Configuration
 @EnableWebSocketMessageBroker
 @Order(Ordered.HIGHEST_PRECEDENCE + 99)
@@ -55,7 +57,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    // CONNECT 명령: Authorization 헤더에서 JWT 추출 및 인증 설정
                     String authToken = accessor.getFirstNativeHeader("Authorization");
                     if (authToken != null && authToken.startsWith("Bearer ")) {
                         try {
@@ -63,15 +67,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             Jwt jwt = jwtDecoder.decode(token);
                             JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
                             Authentication authentication = converter.convert(jwt);
+
+                            // ✅ 핵심: setUser()로 Principal 설정
                             accessor.setUser(authentication);
+
+                            log.debug("WebSocket authentication successful: {}", authentication.getName());
                         } catch (Exception e) {
-                            // JWT 디코딩 실패 시 인증 없이 진행 (연결은 허용하지만 메시지 전송 시 에러 발생)
+                            log.error("JWT authentication failed during CONNECT", e);
+                            // 인증 실패 시 연결 거부하려면 예외를 throw
+                            // throw new AuthenticationException("Invalid JWT token");
                         }
+                    } else {
+                        log.warn("No Authorization header in CONNECT message");
                     }
-                } else if (accessor != null && accessor.getUser() == null) {
-                    // CONNECT가 아닌 메시지에서도 인증 정보가 없으면 기존 인증 정보 유지
-                    // WebSocket 세션에서 인증 정보를 가져올 수 있도록 설정
                 }
+
                 return message;
             }
         });
