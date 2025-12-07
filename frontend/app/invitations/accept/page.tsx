@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useSearchParams } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { acceptInvitation, ApiError } from '@/lib/api';
 import { getAuthToken, isValidToken } from '@/lib/auth';
 
