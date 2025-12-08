@@ -40,24 +40,29 @@ kill_port() {
             
             # Get full command line
             local full_cmd=$(ps -p "$pid" -o command= 2>/dev/null || echo "")
-            
-            # Skip if it's a Docker-related process (Docker daemon, containerd, etc.)
-            if echo "$cmd $full_cmd" | grep -qiE "(docker|containerd|dockerd|com\.docker\.|rancher|vpnkit)" >/dev/null 2>&1; then
-                echo "   ⚠️  Skipping Docker-related process (PID: $pid)"
-                continue
-            fi
-            
-            # On Linux, check cgroup to detect Docker containers
-            if [ -f "/proc/$pid/cgroup" ] 2>/dev/null; then
-                if grep -qE "(docker|containerd)" "/proc/$pid/cgroup" 2>/dev/null; then
-                    echo "   ⚠️  Skipping Docker container process (PID: $pid)"
+
+            # WHITELIST approach: ONLY kill Java/Node/Gradle processes (our application)
+            # This is safer than trying to blacklist everything else
+            if echo "$cmd $full_cmd" | grep -qE "(java|node|npm|gradle)" 2>/dev/null; then
+                # Double-check it's not a Docker-managed process
+                if echo "$cmd $full_cmd" | grep -qiE "(docker|containerd|rancher|lima|qemu)" 2>/dev/null; then
+                    echo "   ⚠️  Skipping Docker/Rancher-related Java/Node process (PID: $pid)"
                     continue
                 fi
+
+                # On Linux, check cgroup to detect Docker containers
+                if [ -f "/proc/$pid/cgroup" ] 2>/dev/null; then
+                    if grep -qE "(docker|containerd)" "/proc/$pid/cgroup" 2>/dev/null; then
+                        echo "   ⚠️  Skipping Docker container process (PID: $pid)"
+                        continue
+                    fi
+                fi
+
+                echo "   Killing application process PID: $pid ($cmd)"
+                kill -9 "$pid" 2>/dev/null || true
+            else
+                echo "   ⚠️  Skipping non-application process (PID: $pid): $cmd"
             fi
-            
-            # Safe to kill - it's not a Docker process
-            echo "   Killing PID: $pid"
-            kill -9 "$pid" 2>/dev/null || true
         done
         echo "✅ Port $port cleared"
     else
