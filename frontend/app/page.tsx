@@ -11,6 +11,7 @@ import ChannelList from '@/components/ChannelList';
 import MessageList from '@/components/MessageList';
 import MessageInput from '@/components/MessageInput';
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
+import InviteUserModal from '@/components/InviteUserModal';
 
 export default function Home() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteWorkspaceId, setInviteWorkspaceId] = useState<number | null>(null);
 
   const { isConnected, error: wsError, subscribeToChannel, sendMessage } = useWebSocket(token);
 
@@ -208,6 +211,28 @@ export default function Home() {
     setSelectedWorkspaceId(workspace.id);
   }, []);
 
+  const handleInviteUser = useCallback((workspaceId: number) => {
+    if (!token) {
+      setError('Please log in to invite users.');
+      return;
+    }
+    setInviteWorkspaceId(workspaceId);
+    setIsInviteModalOpen(true);
+  }, [token]);
+
+  const handleInviteSuccess = useCallback((inviteResponse: { token: string; email: string }) => {
+    // 초대 링크 생성
+    const inviteLink = `${window.location.origin}/invitations/accept?token=${inviteResponse.token}`;
+    
+    // 클립보드에 복사
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      alert(`Invitation link copied to clipboard!\n\nEmail: ${inviteResponse.email}\nLink: ${inviteLink}`);
+    }).catch(() => {
+      // 클립보드 복사 실패 시 링크만 표시
+      alert(`Invitation created!\n\nEmail: ${inviteResponse.email}\nLink: ${inviteLink}`);
+    });
+  }, []);
+
   // 토큰이 없으면 아무것도 렌더링하지 않음 (리다이렉트 중)
   if (!token) {
     return null;
@@ -248,6 +273,7 @@ export default function Home() {
           selectedWorkspaceId={selectedWorkspaceId}
           onSelectWorkspace={setSelectedWorkspaceId}
           onCreateWorkspace={handleCreateWorkspace}
+          onInviteUser={handleInviteUser}
         />
         <ChannelList
           channels={channels}
@@ -281,12 +307,26 @@ export default function Home() {
         </div>
       </div>
       {token && (
-        <CreateWorkspaceModal
-          isOpen={isCreateWorkspaceModalOpen}
-          onClose={() => setIsCreateWorkspaceModalOpen(false)}
-          onSuccess={handleWorkspaceCreated}
-          token={token}
-        />
+        <>
+          <CreateWorkspaceModal
+            isOpen={isCreateWorkspaceModalOpen}
+            onClose={() => setIsCreateWorkspaceModalOpen(false)}
+            onSuccess={handleWorkspaceCreated}
+            token={token}
+          />
+          {inviteWorkspaceId && (
+            <InviteUserModal
+              isOpen={isInviteModalOpen}
+              onClose={() => {
+                setIsInviteModalOpen(false);
+                setInviteWorkspaceId(null);
+              }}
+              onSuccess={handleInviteSuccess}
+              workspaceId={inviteWorkspaceId}
+              token={token}
+            />
+          )}
+        </>
       )}
     </>
   );

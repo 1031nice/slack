@@ -7,6 +7,7 @@ interface WorkspaceListProps {
   selectedWorkspaceId: number | null;
   onSelectWorkspace: (workspaceId: number) => void;
   onCreateWorkspace: () => void;
+  onInviteUser: (workspaceId: number) => void;
 }
 
 export default function WorkspaceList({
@@ -14,7 +15,22 @@ export default function WorkspaceList({
   selectedWorkspaceId,
   onSelectWorkspace,
   onCreateWorkspace,
+  onInviteUser,
 }: WorkspaceListProps) {
+  const handleWorkspaceClick = (workspaceId: number, e: React.MouseEvent) => {
+    // 초대 버튼 클릭이 아닌 경우에만 워크스페이스 선택
+    if ((e.target as HTMLElement).closest('.invite-button')) {
+      e.stopPropagation();
+      return;
+    }
+    onSelectWorkspace(workspaceId);
+  };
+
+  const handleInviteClick = (workspaceId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onInviteUser(workspaceId);
+  };
+
   return (
     <div className="w-64 bg-gray-800 text-white p-4 flex flex-col">
       <div className="mb-4">
@@ -30,16 +46,27 @@ export default function WorkspaceList({
         {workspaces.map((workspace) => (
           <li
             key={workspace.id}
-            onClick={() => onSelectWorkspace(workspace.id)}
+            onClick={(e) => handleWorkspaceClick(workspace.id, e)}
             className={`p-2 rounded cursor-pointer ${
               selectedWorkspaceId === workspace.id
                 ? 'bg-blue-600 text-white'
                 : 'hover:bg-gray-700'
             }`}
           >
-            <div className="font-semibold">{workspace.name}</div>
-            <div className="text-xs text-gray-400 mt-1">
-              {new Date(workspace.createdAt).toLocaleDateString()}
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="font-semibold">{workspace.name}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {new Date(workspace.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+              <button
+                onClick={(e) => handleInviteClick(workspace.id, e)}
+                className="invite-button ml-2 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded"
+                title="Invite user to workspace"
+              >
+                +
+              </button>
             </div>
           </li>
         ))}
