@@ -139,43 +139,35 @@ class WebSocketMessageServiceTest {
     }
 
     @Test
-    @DisplayName("인증 정보가 없으면 test-client를 사용한다")
+    @DisplayName("인증 정보가 없으면 예외가 발생한다")
     void handleIncomingMessage_NoAuthentication() {
         // given
         when(authentication.getPrincipal()).thenReturn(null);
-        when(userService.findByAuthUserId("test-client")).thenReturn(testUser);
-        when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
-                .thenReturn(testMessageResponse);
-        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
-        // when
-        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);
+        // when & then
+        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Authentication required");
 
-        // then
-        verify(userService, times(1)).findByAuthUserId("test-client");
-        verify(messageService, times(1)).createMessage(anyLong(), any(MessageCreateRequest.class));
-        verify(redisMessagePublisher, times(1)).publish(any(WebSocketMessage.class));
-        assertThat(result).isNotNull();
+        verify(userService, never()).findByAuthUserId(anyString());
+        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
     }
 
     @Test
-    @DisplayName("JWT가 아닌 Principal이면 test-client를 사용한다")
+    @DisplayName("JWT가 아닌 Principal이면 예외가 발생한다")
     void handleIncomingMessage_InvalidPrincipal() {
         // given
         when(authentication.getPrincipal()).thenReturn("invalid-principal");
-        when(userService.findByAuthUserId("test-client")).thenReturn(testUser);
-        when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
-                .thenReturn(testMessageResponse);
-        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
-        // when
-        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);
+        // when & then
+        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Authentication required");
 
-        // then
-        verify(userService, times(1)).findByAuthUserId("test-client");
-        verify(messageService, times(1)).createMessage(anyLong(), any(MessageCreateRequest.class));
-        verify(redisMessagePublisher, times(1)).publish(any(WebSocketMessage.class));
-        assertThat(result).isNotNull();
+        verify(userService, never()).findByAuthUserId(anyString());
+        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
+        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
     }
 
     @Test
