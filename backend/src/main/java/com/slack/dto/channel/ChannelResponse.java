@@ -20,5 +20,6 @@ public class ChannelResponse {
     private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long unreadCount; // Number of unread messages in this channel
 }
 

@@ -57,8 +57,18 @@ public class ChannelController {
 
     @GetMapping("/channels/{channelId}")
     @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
-    public ResponseEntity<ChannelResponse> getChannelById(@PathVariable Long channelId) {
-        ChannelResponse response = channelService.getChannelById(channelId);
+    public ResponseEntity<ChannelResponse> getChannelById(
+            @PathVariable Long channelId,
+            @AuthenticationPrincipal Jwt jwt) {
+        // JWT에서 사용자 정보 추출
+        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
+        var user = userRegistrationService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
+        
+        ChannelResponse response = channelService.getChannelById(channelId, user.getId());
         return ok(response);
     }
 }

@@ -26,6 +26,7 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final ChannelRepository channelRepository;
     private final UserService userService;
+    private final UnreadCountService unreadCountService;
 
     @Transactional
     public MessageResponse createMessage(Long channelId, MessageCreateRequest request) {
@@ -43,6 +44,11 @@ public class MessageService {
                 .build();
         
         Message saved = messageRepository.save(message);
+        
+        // Increment unread count for all channel members except sender
+        long timestamp = saved.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        unreadCountService.incrementUnreadCount(channelId, saved.getId(), user.getId(), timestamp);
+        
         return toResponse(saved);
     }
 

@@ -24,6 +24,7 @@ public class ChannelService {
     private final ChannelRepository channelRepository;
     private final WorkspaceRepository workspaceRepository;
     private final PermissionService permissionService;
+    private final UnreadCountService unreadCountService;
 
     @Transactional
     public ChannelResponse createChannel(Long workspaceId, ChannelCreateRequest request) {
@@ -38,13 +39,27 @@ public class ChannelService {
                 .build();
         
         Channel saved = channelRepository.save(channel);
-        return toResponse(saved);
+        // New channel has no unread messages, so unreadCount is 0
+        return toResponse(saved, null);
     }
 
     public ChannelResponse getChannelById(Long id) {
         Channel channel = channelRepository.findById(id)
                 .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + id));
-        return toResponse(channel);
+        return toResponse(channel, null);
+    }
+
+    /**
+     * Get channel by ID with unread count for a specific user
+     * 
+     * @param id Channel ID
+     * @param userId User ID (for unread count calculation)
+     * @return Channel response with unread count
+     */
+    public ChannelResponse getChannelById(Long id, Long userId) {
+        Channel channel = channelRepository.findById(id)
+                .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + id));
+        return toResponse(channel, userId);
     }
 
     /**
@@ -59,7 +74,7 @@ public class ChannelService {
     public List<ChannelResponse> getWorkspaceChannels(Long workspaceId, Long userId) {
         return channelRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(channel -> canUserAccessChannel(channel, userId))
-                .map(this::toResponse)
+                .map(channel -> toResponse(channel, userId))
                 .collect(Collectors.toList());
     }
 
@@ -104,16 +119,25 @@ public class ChannelService {
                 });
     }
 
-    private ChannelResponse toResponse(Channel channel) {
-        return ChannelResponse.builder()
+    private ChannelResponse toResponse(Channel channel, Long userId) {
+        ChannelResponse.ChannelResponseBuilder builder = ChannelResponse.builder()
                 .id(channel.getId())
                 .workspaceId(channel.getWorkspace().getId())
                 .name(channel.getName())
                 .type(channel.getType())
                 .createdBy(channel.getCreatedBy())
                 .createdAt(channel.getCreatedAt())
-                .updatedAt(channel.getUpdatedAt())
-                .build();
+                .updatedAt(channel.getUpdatedAt());
+        
+        // Add unread count if userId is provided
+        if (userId != null) {
+            long unreadCount = unreadCountService.getUnreadCount(userId, channel.getId());
+            builder.unreadCount(unreadCount);
+        } else {
+            builder.unreadCount(0L);
+        }
+        
+        return builder.build();
     }
 }
 
