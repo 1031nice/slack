@@ -26,7 +26,8 @@ public class WebSocketMessage {
         ERROR,        // 에러
         ACK,          // 메시지 수신 확인
         RESEND,       // 메시지 재전송 요청
-        MENTION       // @mention 알림
+        MENTION,      // @mention 알림
+        READ          // 읽음 처리 (read receipt)
     }
 }
 
