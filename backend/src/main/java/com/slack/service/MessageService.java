@@ -26,6 +26,7 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final ChannelRepository channelRepository;
     private final UserService userService;
+    private final MentionService mentionService;
 
     @Transactional
     public MessageResponse createMessage(Long channelId, MessageCreateRequest request) {
@@ -43,6 +44,10 @@ public class MessageService {
                 .build();
         
         Message saved = messageRepository.save(message);
+        
+        // Create mention notifications for @username mentions
+        mentionService.createMentions(saved);
+        
         return toResponse(saved);
     }
 
