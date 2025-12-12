@@ -23,6 +23,7 @@ public class WebSocketMessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final RedisMessagePublisher redisMessagePublisher;
     private final MessageSequenceService sequenceService;
+    private final ReadReceiptService readReceiptService;
 
     /**
      * WebSocket을 통해 받은 메시지를 처리하고 브로드캐스팅합니다.
@@ -169,6 +170,39 @@ public class WebSocketMessageService {
             
             messagingTemplate.convertAndSend(userDestination, webSocketMessage);
         }
+    }
+
+    /**
+     * READ 메시지를 처리합니다.
+     * 클라이언트가 특정 채널의 메시지를 읽었음을 처리합니다.
+     * 
+     * @param message READ 메시지 (channelId, sequenceNumber 포함)
+     * @param authentication 인증 정보
+     */
+    public void handleRead(WebSocketMessage message, Authentication authentication) {
+        if (message.getType() != WebSocketMessage.MessageType.READ) {
+            log.warn("Received non-READ message in handleRead: type={}", message.getType());
+            return;
+        }
+
+        // JWT에서 authUserId 추출
+        String authUserId = extractAuthUserId(authentication);
+        if (authUserId == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+
+        // User 조회
+        User user = userService.findByAuthUserId(authUserId);
+
+        log.debug("Processing read receipt: userId={}, channelId={}, sequenceNumber={}", 
+                user.getId(), message.getChannelId(), message.getSequenceNumber());
+
+        // Read receipt 업데이트 (Redis에 저장하고 브로드캐스트)
+        readReceiptService.updateReadReceipt(
+                user.getId(),
+                message.getChannelId(),
+                message.getSequenceNumber()
+        );
     }
 
     /**
