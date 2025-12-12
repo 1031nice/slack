@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Read receipt service for tracking and broadcasting read status
@@ -104,8 +103,6 @@ public class ReadReceiptService {
      * @param lastReadSequence Last read sequence number
      */
     private void broadcastReadReceipt(Long userId, Long channelId, Long lastReadSequence) {
-        List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
-        
         WebSocketMessage readReceiptMessage = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.READ)
                 .channelId(channelId)
