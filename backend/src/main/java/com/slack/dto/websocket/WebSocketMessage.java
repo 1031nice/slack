@@ -25,7 +25,8 @@ public class WebSocketMessage {
         LEAVE,        // 채널 나가기
         ERROR,        // 에러
         ACK,          // 메시지 수신 확인
-        RESEND        // 메시지 재전송 요청
+        RESEND,       // 메시지 재전송 요청
+        MENTION       // @mention 알림
     }
 }
 

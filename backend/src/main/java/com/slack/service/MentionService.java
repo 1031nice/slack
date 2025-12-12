@@ -3,10 +3,12 @@ package com.slack.service;
 import com.slack.domain.mention.Mention;
 import com.slack.domain.message.Message;
 import com.slack.domain.user.User;
+import com.slack.dto.websocket.WebSocketMessage;
 import com.slack.repository.MentionRepository;
 import com.slack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ public class MentionService {
 
     private final MentionRepository mentionRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Parse @username mentions from message content
@@ -102,6 +105,9 @@ public class MentionService {
                     Mention saved = mentionRepository.save(mention);
                     createdMentions.add(saved);
                     log.debug("Created mention: messageId={}, mentionedUserId={}", message.getId(), user.getId());
+                    
+                    // Send WebSocket notification to mentioned user
+                    sendMentionNotification(saved);
                 }
             }
         }
@@ -140,5 +146,33 @@ public class MentionService {
                 .orElseThrow(() -> new RuntimeException("Mention not found with id: " + mentionId));
         mention.markAsRead();
         mentionRepository.save(mention);
+    }
+
+    /**
+     * Send WebSocket notification to mentioned user
+     * 
+     * @param mention Mention entity
+     */
+    private void sendMentionNotification(Mention mention) {
+        try {
+            WebSocketMessage notification = WebSocketMessage.builder()
+                    .type(WebSocketMessage.MessageType.MENTION)
+                    .channelId(mention.getMessage().getChannel().getId())
+                    .messageId(mention.getMessage().getId())
+                    .userId(mention.getMessage().getUser().getId())
+                    .content(mention.getMessage().getContent())
+                    .createdAt(mention.getCreatedAt().toString())
+                    .build();
+
+            // Send to user's personal queue
+            String userDestination = "/queue/mentions." + mention.getMentionedUser().getId();
+            messagingTemplate.convertAndSend(userDestination, notification);
+            
+            log.debug("Sent mention notification to user {}: messageId={}", 
+                    mention.getMentionedUser().getId(), mention.getMessage().getId());
+        } catch (Exception e) {
+            log.error("Failed to send mention notification", e);
+            // Don't throw exception - mention is already saved, notification failure shouldn't break the flow
+        }
     }
 }
