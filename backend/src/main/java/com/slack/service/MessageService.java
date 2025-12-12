@@ -27,6 +27,7 @@ public class MessageService {
     private final ChannelRepository channelRepository;
     private final UserService userService;
     private final UnreadCountService unreadCountService;
+    private final MentionService mentionService;
 
     @Transactional
     public MessageResponse createMessage(Long channelId, MessageCreateRequest request) {
@@ -48,6 +49,9 @@ public class MessageService {
         // Increment unread count for all channel members except sender
         long timestamp = saved.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
         unreadCountService.incrementUnreadCount(channelId, saved.getId(), user.getId(), timestamp);
+        
+        // Create mention notifications for @username mentions
+        mentionService.createMentions(saved);
         
         return toResponse(saved);
     }
