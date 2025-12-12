@@ -39,7 +39,6 @@ public class ChannelService {
                 .build();
         
         Channel saved = channelRepository.save(channel);
-        // New channel has no unread messages, so unreadCount is 0
         return toResponse(saved, null);
     }
 
@@ -49,28 +48,12 @@ public class ChannelService {
         return toResponse(channel, null);
     }
 
-    /**
-     * Get channel by ID with unread count for a specific user
-     * 
-     * @param id Channel ID
-     * @param userId User ID (for unread count calculation)
-     * @return Channel response with unread count
-     */
     public ChannelResponse getChannelById(Long id, Long userId) {
         Channel channel = channelRepository.findById(id)
                 .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + id));
         return toResponse(channel, userId);
     }
 
-    /**
-     * 사용자가 접근 가능한 워크스페이스의 채널 목록을 반환합니다.
-     * - PUBLIC 채널: 워크스페이스 멤버면 모두 표시
-     * - PRIVATE 채널: 채널 멤버만 표시
-     * 
-     * @param workspaceId 워크스페이스 ID
-     * @param userId 사용자 ID
-     * @return 사용자가 접근 가능한 채널 목록
-     */
     public List<ChannelResponse> getWorkspaceChannels(Long workspaceId, Long userId) {
         return channelRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(channel -> canUserAccessChannel(channel, userId))
@@ -129,7 +112,6 @@ public class ChannelService {
                 .createdAt(channel.getCreatedAt())
                 .updatedAt(channel.getUpdatedAt());
         
-        // Add unread count if userId is provided
         if (userId != null) {
             long unreadCount = unreadCountService.getUnreadCount(userId, channel.getId());
             builder.unreadCount(unreadCount);

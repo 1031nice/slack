@@ -1,11 +1,7 @@
 package com.slack.service;
 
-import com.slack.domain.channel.Channel;
-import com.slack.domain.readreceipt.ReadReceipt;
-import com.slack.domain.user.User;
 import com.slack.dto.websocket.WebSocketMessage;
 import com.slack.repository.ChannelMemberRepository;
-import com.slack.repository.ReadReceiptRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -18,8 +14,7 @@ import java.util.Set;
 
 /**
  * Read receipt service for tracking and broadcasting read status
- * 
- * Uses Redis for real-time storage and PostgreSQL for persistence (v0.4.1)
+ * Uses Redis for real-time storage
  */
 @Service
 @RequiredArgsConstructor
@@ -29,7 +24,6 @@ public class ReadReceiptService {
 
     private static final String READ_RECEIPT_KEY_PREFIX = "read_receipt:";
     
-    private final ReadReceiptRepository readReceiptRepository;
     private final ChannelMemberRepository channelMemberRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
@@ -49,14 +43,12 @@ public class ReadReceiptService {
             return;
         }
 
-        // Store in Redis for real-time access
         String redisKey = buildRedisKey(userId, channelId);
         redisTemplate.opsForValue().set(redisKey, lastReadSequence.toString());
         
         log.debug("Updated read receipt in Redis: userId={}, channelId={}, sequence={}", 
                 userId, channelId, lastReadSequence);
 
-        // Broadcast to channel members
         broadcastReadReceipt(userId, channelId, lastReadSequence);
     }
 
@@ -91,7 +83,6 @@ public class ReadReceiptService {
      * @return Map of userId -> lastReadSequence
      */
     public java.util.Map<Long, Long> getChannelReadReceipts(Long channelId) {
-        // Get all channel member IDs
         List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
         
         java.util.Map<Long, Long> readReceipts = new java.util.HashMap<>();
@@ -113,10 +104,8 @@ public class ReadReceiptService {
      * @param lastReadSequence Last read sequence number
      */
     private void broadcastReadReceipt(Long userId, Long channelId, Long lastReadSequence) {
-        // Get all channel member IDs
         List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
         
-        // Create read receipt message
         WebSocketMessage readReceiptMessage = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.READ)
                 .channelId(channelId)
@@ -124,7 +113,6 @@ public class ReadReceiptService {
                 .sequenceNumber(lastReadSequence)
                 .build();
 
-        // Broadcast to channel topic
         String channelDestination = "/topic/channel." + channelId;
         messagingTemplate.convertAndSend(channelDestination, readReceiptMessage);
         
