@@ -1,6 +1,7 @@
 package com.slack.controller;
 
 import com.slack.service.ReadReceiptService;
+import com.slack.service.UserService;
 import com.slack.util.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ import static com.slack.controller.ResponseHelper.ok;
 public class ReadReceiptController {
 
     private final ReadReceiptService readReceiptService;
-    private final com.slack.application.UserRegistrationService userRegistrationService;
+    private final UserService userService;
 
     /**
      * Get read receipt for a user in a channel
@@ -34,11 +35,12 @@ public class ReadReceiptController {
             @PathVariable Long channelId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
+        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
+                .orElseGet(() -> userService.createUser(
+                        userInfo.authUserId(),
+                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                        userInfo.name()
+                ));
 
         Long lastReadSequence = readReceiptService.getReadReceipt(user.getId(), channelId);
         return ok(Map.of("lastReadSequence", lastReadSequence != null ? lastReadSequence : 0L));

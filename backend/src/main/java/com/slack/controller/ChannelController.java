@@ -1,9 +1,9 @@
 package com.slack.controller;
 
-import com.slack.application.UserRegistrationService;
 import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
 import com.slack.service.ChannelService;
+import com.slack.service.UserService;
 import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import static com.slack.controller.ResponseHelper.ok;
 public class ChannelController {
 
     private final ChannelService channelService;
-    private final UserRegistrationService userRegistrationService;
+    private final UserService userService;
 
     @PostMapping("/workspaces/{workspaceId}/channels")
     @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
@@ -41,11 +41,12 @@ public class ChannelController {
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
+        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
+                .orElseGet(() -> userService.createUser(
+                        userInfo.authUserId(),
+                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                        userInfo.name()
+                ));
         
         List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId, user.getId());
         return ok(channels);
@@ -57,11 +58,12 @@ public class ChannelController {
             @PathVariable Long channelId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
+        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
+                .orElseGet(() -> userService.createUser(
+                        userInfo.authUserId(),
+                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                        userInfo.name()
+                ));
         
         ChannelResponse response = channelService.getChannelById(channelId, user.getId());
         return ok(response);

@@ -2,6 +2,7 @@ package com.slack.controller;
 
 import com.slack.dto.mention.MentionResponse;
 import com.slack.service.MentionService;
+import com.slack.service.UserService;
 import com.slack.util.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ import static com.slack.controller.ResponseHelper.ok;
 public class MentionController {
 
     private final MentionService mentionService;
-    private final com.slack.application.UserRegistrationService userRegistrationService;
+    private final UserService userService;
 
     /**
      * Get all mentions for the authenticated user
@@ -33,11 +34,12 @@ public class MentionController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
+        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
+                .orElseGet(() -> userService.createUser(
+                        userInfo.authUserId(),
+                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                        userInfo.name()
+                ));
 
         List<MentionResponse> mentions = mentionService.getMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
@@ -56,11 +58,12 @@ public class MentionController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
+        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
+                .orElseGet(() -> userService.createUser(
+                        userInfo.authUserId(),
+                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                        userInfo.name()
+                ));
 
         List<MentionResponse> mentions = mentionService.getUnreadMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
