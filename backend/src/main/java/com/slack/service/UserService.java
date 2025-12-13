@@ -10,10 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * User Domain Service
- * 
- * User 도메인에 대한 비즈니스 로직을 처리합니다.
- * 다른 Domain Service와의 의존성을 제거하여 순환 참조를 방지합니다.
+ * User domain service handling user-related business logic.
  */
 @Service
 @RequiredArgsConstructor
@@ -23,12 +20,17 @@ public class UserService {
     private final UserRepository userRepository;
 
     /**
-     * authUserId로 User를 찾습니다.
-     * 사용자가 없으면 예외를 발생시킵니다.
-     * 
-     * @param authUserId 인증 서버의 사용자 ID
-     * @return User
-     * @throws UserNotFoundException 사용자를 찾을 수 없는 경우
+     * Finds user by authUserId or creates a new one if not found.
+     * This is the primary method for OAuth-based user registration.
+     */
+    @Transactional
+    public User findOrCreateUser(String authUserId, String email, String name) {
+        return findByAuthUserIdOptional(authUserId)
+                .orElseGet(() -> createUser(authUserId, email, name));
+    }
+
+    /**
+     * Finds user by authUserId, throws exception if not found.
      */
     public User findByAuthUserId(String authUserId) {
         return userRepository.findByAuthUserId(authUserId)
@@ -36,22 +38,14 @@ public class UserService {
     }
 
     /**
-     * authUserId로 User를 찾습니다.
-     * 사용자가 없으면 Optional.empty()를 반환합니다.
-     * 
-     * @param authUserId 인증 서버의 사용자 ID
-     * @return Optional<User>
+     * Finds user by authUserId, returns Optional.
      */
     public Optional<User> findByAuthUserIdOptional(String authUserId) {
         return userRepository.findByAuthUserId(authUserId);
     }
 
     /**
-     * ID로 User를 찾습니다.
-     * 
-     * @param id User ID
-     * @return User
-     * @throws UserNotFoundException 사용자를 찾을 수 없는 경우
+     * Finds user by ID, throws exception if not found.
      */
     public User findById(Long id) {
         return userRepository.findById(id)
@@ -59,12 +53,7 @@ public class UserService {
     }
 
     /**
-     * 새 User를 생성합니다.
-     * 
-     * @param authUserId 인증 서버의 사용자 ID
-     * @param email 사용자 이메일
-     * @param name 사용자 이름
-     * @return 생성된 User
+     * Creates a new user.
      */
     @Transactional
     public User createUser(String authUserId, String email, String name) {

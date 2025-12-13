@@ -35,12 +35,11 @@ public class ReadReceiptController {
             @PathVariable Long channelId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                        userInfo.name()
-                ));
+        var user = userService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
 
         Long lastReadSequence = readReceiptService.getReadReceipt(user.getId(), channelId);
         return ok(Map.of("lastReadSequence", lastReadSequence != null ? lastReadSequence : 0L));

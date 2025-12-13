@@ -34,12 +34,11 @@ public class MentionController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                        userInfo.name()
-                ));
+        var user = userService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
 
         List<MentionResponse> mentions = mentionService.getMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
@@ -58,12 +57,11 @@ public class MentionController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                        userInfo.name()
-                ));
+        var user = userService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
 
         List<MentionResponse> mentions = mentionService.getUnreadMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)

@@ -39,12 +39,7 @@ public class WorkspaceController {
     public ResponseEntity<List<WorkspaceResponse>> getUserWorkspaces(
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email(),
-                        userInfo.name()
-                ));
+        userService.findOrCreateUser(userInfo.authUserId(), userInfo.email(), userInfo.name());
         List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(userInfo.authUserId());
         return ok(workspaces);
     }

@@ -41,12 +41,11 @@ public class ChannelController {
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                        userInfo.name()
-                ));
+        var user = userService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
         
         List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId, user.getId());
         return ok(channels);
@@ -58,12 +57,11 @@ public class ChannelController {
             @PathVariable Long channelId,
             @AuthenticationPrincipal Jwt jwt) {
         JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userService.findByAuthUserIdOptional(userInfo.authUserId())
-                .orElseGet(() -> userService.createUser(
-                        userInfo.authUserId(),
-                        userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                        userInfo.name()
-                ));
+        var user = userService.findOrCreateUser(
+                userInfo.authUserId(),
+                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
+                userInfo.name()
+        );
         
         ChannelResponse response = channelService.getChannelById(channelId, user.getId());
         return ok(response);
