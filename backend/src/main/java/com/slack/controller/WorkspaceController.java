@@ -1,16 +1,14 @@
 package com.slack.controller;
 
+import com.slack.domain.user.User;
 import com.slack.dto.workspace.WorkspaceCreateRequest;
 import com.slack.dto.workspace.WorkspaceResponse;
-import com.slack.service.UserService;
 import com.slack.service.WorkspaceService;
-import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,23 +22,19 @@ import static com.slack.controller.ResponseHelper.ok;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
-    private final UserService userService;
 
     @PostMapping
     public ResponseEntity<WorkspaceResponse> createWorkspace(
             @Valid @RequestBody WorkspaceCreateRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        String authUserId = JwtUtils.extractAuthUserId(jwt);
-        WorkspaceResponse response = workspaceService.createWorkspace(request, authUserId);
+            @AuthenticationPrincipal User user) {
+        WorkspaceResponse response = workspaceService.createWorkspace(request, user.getAuthUserId());
         return created(response);
     }
 
     @GetMapping
     public ResponseEntity<List<WorkspaceResponse>> getUserWorkspaces(
-            @AuthenticationPrincipal Jwt jwt) {
-        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        userService.findOrCreateUser(userInfo.authUserId(), userInfo.email(), userInfo.name());
-        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(userInfo.authUserId());
+            @AuthenticationPrincipal User user) {
+        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(user.getAuthUserId());
         return ok(workspaces);
     }
 
