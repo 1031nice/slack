@@ -1,13 +1,12 @@
 package com.slack.controller;
 
+import com.slack.domain.user.User;
 import com.slack.dto.mention.MentionResponse;
 import com.slack.service.MentionService;
-import com.slack.util.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +20,6 @@ import static com.slack.controller.ResponseHelper.ok;
 public class MentionController {
 
     private final MentionService mentionService;
-    private final com.slack.application.UserRegistrationService userRegistrationService;
 
     /**
      * Get all mentions for the authenticated user
@@ -31,14 +29,7 @@ public class MentionController {
      */
     @GetMapping("/mentions")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal Jwt jwt) {
-        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
-
+    public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal User user) {
         List<MentionResponse> mentions = mentionService.getMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -54,14 +45,7 @@ public class MentionController {
      */
     @GetMapping("/mentions/unread")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal Jwt jwt) {
-        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
-
+    public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal User user) {
         List<MentionResponse> mentions = mentionService.getUnreadMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -71,16 +55,13 @@ public class MentionController {
 
     /**
      * Mark a mention as read
-     * 
+     *
      * @param mentionId Mention ID
-     * @param jwt JWT token
      * @return Success response
      */
     @PutMapping("/mentions/{mentionId}/read")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> markMentionAsRead(
-            @PathVariable Long mentionId,
-            @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> markMentionAsRead(@PathVariable Long mentionId) {
         mentionService.markMentionAsRead(mentionId);
         return ok(null);
     }

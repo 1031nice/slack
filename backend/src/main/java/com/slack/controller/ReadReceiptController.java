@@ -1,12 +1,11 @@
 package com.slack.controller;
 
+import com.slack.domain.user.User;
 import com.slack.service.ReadReceiptService;
-import com.slack.util.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -19,7 +18,6 @@ import static com.slack.controller.ResponseHelper.ok;
 public class ReadReceiptController {
 
     private final ReadReceiptService readReceiptService;
-    private final com.slack.application.UserRegistrationService userRegistrationService;
 
     /**
      * Get read receipt for a user in a channel
@@ -32,14 +30,7 @@ public class ReadReceiptController {
     @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<Map<String, Long>> getReadReceipt(
             @PathVariable Long channelId,
-            @AuthenticationPrincipal Jwt jwt) {
-        JwtUtils.UserInfo userInfo = JwtUtils.extractUserInfo(jwt);
-        var user = userRegistrationService.findOrCreateUser(
-                userInfo.authUserId(),
-                userInfo.email() != null ? userInfo.email() : userInfo.authUserId(),
-                userInfo.name()
-        );
-
+            @AuthenticationPrincipal User user) {
         Long lastReadSequence = readReceiptService.getReadReceipt(user.getId(), channelId);
         return ok(Map.of("lastReadSequence", lastReadSequence != null ? lastReadSequence : 0L));
     }

@@ -1,16 +1,15 @@
 package com.slack.controller;
 
+import com.slack.domain.user.User;
 import com.slack.dto.message.MessageCreateRequest;
 import com.slack.dto.message.MessageResponse;
 import com.slack.service.MessageService;
 import com.slack.service.UnreadCountService;
-import com.slack.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,7 +24,6 @@ public class MessageController {
 
     private final MessageService messageService;
     private final UnreadCountService unreadCountService;
-    private final UserService userService;
 
     @PostMapping("/channels/{channelId}/messages")
     @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
@@ -42,17 +40,9 @@ public class MessageController {
             @PathVariable Long channelId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Long before,
-            @AuthenticationPrincipal Jwt jwt) {
-        if (jwt != null) {
-            String authUserId = jwt.getSubject();
-            try {
-                var user = userService.findByAuthUserId(authUserId);
-                unreadCountService.clearUnreadCount(user.getId(), channelId);
-            } catch (Exception e) {
-                // Skip if user not found
-            }
-        }
-        
+            @AuthenticationPrincipal User user) {
+        unreadCountService.clearUnreadCount(user.getId(), channelId);
+
         List<MessageResponse> messages = messageService.getChannelMessages(channelId, limit, before);
         return ok(messages);
     }

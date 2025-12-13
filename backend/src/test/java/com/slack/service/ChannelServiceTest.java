@@ -38,6 +38,9 @@ class ChannelServiceTest {
     @Mock
     private PermissionService permissionService;
 
+    @Mock
+    private UnreadCountService unreadCountService;
+
     @InjectMocks
     private ChannelService channelService;
 
@@ -148,6 +151,8 @@ class ChannelServiceTest {
                 .createdBy(1L)
                 .build();
         setField(channel1, "id", 1L);
+        setField(channel1, "createdAt", java.time.LocalDateTime.now());
+        setField(channel1, "updatedAt", java.time.LocalDateTime.now());
 
         Channel channel2 = Channel.builder()
                 .workspace(testWorkspace)
@@ -156,9 +161,12 @@ class ChannelServiceTest {
                 .createdBy(1L)
                 .build();
         setField(channel2, "id", 2L);
+        setField(channel2, "createdAt", java.time.LocalDateTime.now());
+        setField(channel2, "updatedAt", java.time.LocalDateTime.now());
 
         when(channelRepository.findByWorkspaceId(1L)).thenReturn(Arrays.asList(channel1, channel2));
         when(permissionService.isWorkspaceMember(userId, 1L)).thenReturn(true);
+        when(unreadCountService.getUnreadCount(anyLong(), anyLong())).thenReturn(0L);
 
         // when
         List<ChannelResponse> result = channelService.getWorkspaceChannels(1L, userId);

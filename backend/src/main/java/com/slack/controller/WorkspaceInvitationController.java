@@ -1,16 +1,15 @@
 package com.slack.controller;
 
+import com.slack.domain.user.User;
 import com.slack.dto.workspace.AcceptInvitationRequest;
 import com.slack.dto.workspace.WorkspaceInviteRequest;
 import com.slack.dto.workspace.WorkspaceInviteResponse;
 import com.slack.service.WorkspaceInvitationService;
-import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import static com.slack.controller.ResponseHelper.created;
@@ -32,9 +31,8 @@ public class WorkspaceInvitationController {
     public ResponseEntity<WorkspaceInviteResponse> inviteUser(
             @PathVariable Long workspaceId,
             @Valid @RequestBody WorkspaceInviteRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        String authUserId = JwtUtils.extractAuthUserId(jwt);
-        WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, authUserId, request);
+            @AuthenticationPrincipal User user) {
+        WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, user.getAuthUserId(), request);
         return created(response);
     }
 
@@ -45,9 +43,8 @@ public class WorkspaceInvitationController {
     @PostMapping("/invitations/accept")
     public ResponseEntity<Long> acceptInvitation(
             @Valid @RequestBody AcceptInvitationRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        String authUserId = JwtUtils.extractAuthUserId(jwt);
-        Long workspaceId = invitationService.acceptInvitation(authUserId, request);
+            @AuthenticationPrincipal User user) {
+        Long workspaceId = invitationService.acceptInvitation(user.getAuthUserId(), request);
         return ok(workspaceId);
     }
 }

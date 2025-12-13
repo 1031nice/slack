@@ -42,6 +42,12 @@ class MessageServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private UnreadCountService unreadCountService;
+
+    @Mock
+    private MentionService mentionService;
+
     @InjectMocks
     private MessageService messageService;
 
@@ -79,6 +85,9 @@ class MessageServiceTest {
                 .parentMessage(null)
                 .build();
         setField(testMessage, "id", 1L);
+        setField(testMessage, "createdAt", java.time.LocalDateTime.now());
+        setField(testMessage, "updatedAt", java.time.LocalDateTime.now());
+        setField(testMessage, "sequenceNumber", 1L);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {
