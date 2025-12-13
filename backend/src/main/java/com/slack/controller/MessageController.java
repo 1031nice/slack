@@ -5,7 +5,6 @@ import com.slack.dto.message.MessageResponse;
 import com.slack.service.MessageService;
 import com.slack.service.UnreadCountService;
 import com.slack.service.UserService;
-import com.slack.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -44,15 +43,13 @@ public class MessageController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Long before,
             @AuthenticationPrincipal Jwt jwt) {
-        // Clear unread count when user reads channel messages
         if (jwt != null) {
             String authUserId = jwt.getSubject();
             try {
                 var user = userService.findByAuthUserId(authUserId);
                 unreadCountService.clearUnreadCount(user.getId(), channelId);
             } catch (Exception e) {
-                // If user not found, skip unread count clearing
-                // This can happen if user hasn't been registered yet
+                // Skip if user not found
             }
         }
         

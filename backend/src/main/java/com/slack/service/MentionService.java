@@ -78,19 +78,14 @@ public class MentionService {
             return createdMentions;
         }
 
-        // Find users by name (case-insensitive)
         for (String username : mentionedUsernames) {
-            // Try to find user by name (case-insensitive)
-            // Note: We're using name field, but in real Slack it would be username or display name
             List<User> users = userRepository.findByNameIgnoreCase(username);
             
             for (User user : users) {
-                // Skip if user mentioned themselves
                 if (user.getId().equals(message.getUser().getId())) {
                     continue;
                 }
 
-                // Check if mention already exists (shouldn't happen due to unique constraint, but check anyway)
                 Mention existingMention = mentionRepository
                         .findByMessageIdAndMentionedUserId(message.getId(), user.getId())
                         .orElse(null);
@@ -105,8 +100,6 @@ public class MentionService {
                     Mention saved = mentionRepository.save(mention);
                     createdMentions.add(saved);
                     log.debug("Created mention: messageId={}, mentionedUserId={}", message.getId(), user.getId());
-                    
-                    // Send WebSocket notification to mentioned user
                     sendMentionNotification(saved);
                 }
             }
@@ -164,7 +157,6 @@ public class MentionService {
                     .createdAt(mention.getCreatedAt().toString())
                     .build();
 
-            // Send to user's personal queue
             String userDestination = "/queue/mentions." + mention.getMentionedUser().getId();
             messagingTemplate.convertAndSend(userDestination, notification);
             
@@ -172,7 +164,6 @@ public class MentionService {
                     mention.getMentionedUser().getId(), mention.getMessage().getId());
         } catch (Exception e) {
             log.error("Failed to send mention notification", e);
-            // Don't throw exception - mention is already saved, notification failure shouldn't break the flow
         }
     }
 }

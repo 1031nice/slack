@@ -36,29 +36,22 @@ public class WebSocketMessageService {
     public WebSocketMessage handleIncomingMessage(WebSocketMessage message, Authentication authentication) {
         log.info("Received message: channelId={}, content={}", message.getChannelId(), message.getContent());
 
-        // JWT에서 authUserId 추출
         String authUserId = extractAuthUserId(authentication);
         if (authUserId == null) {
             throw new IllegalArgumentException("Authentication required");
         }
 
-        // User 조회
         User user = userService.findByAuthUserId(authUserId);
-
-        // 채널별 시퀀스 번호 생성 (메시지 저장 전에 생성)
         Long sequenceNumber = sequenceService.getNextSequenceNumber(message.getChannelId());
 
-        // 메시지 생성 요청
         MessageCreateRequest createRequest = MessageCreateRequest.builder()
                 .userId(user.getId())
                 .content(message.getContent())
                 .sequenceNumber(sequenceNumber)
                 .build();
 
-        // DB에 메시지 저장
         MessageResponse savedMessage = messageService.createMessage(message.getChannelId(), createRequest);
 
-        // WebSocket 메시지 생성
         WebSocketMessage response = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.MESSAGE)
                 .channelId(savedMessage.getChannelId())
@@ -69,7 +62,6 @@ public class WebSocketMessageService {
                 .sequenceNumber(savedMessage.getSequenceNumber())
                 .build();
 
-        // 해당 채널의 모든 구독자에게 브로드캐스팅
         broadcastToChannel(message.getChannelId(), response);
 
         log.info("Broadcasted message to channel {}: messageId={}", message.getChannelId(), savedMessage.getId());
@@ -98,16 +90,11 @@ public class WebSocketMessageService {
     /**
      * 메시지를 특정 채널의 모든 구독자에게 브로드캐스팅합니다.
      * Redis Pub/Sub을 통해 모든 서버(로컬 포함)에 메시지를 전달합니다.
-     * RedisMessageSubscriber가 모든 서버에서 메시지를 수신하여 로컬 클라이언트에게 전달합니다.
      * 
      * @param channelId 채널 ID
      * @param message 브로드캐스팅할 메시지
      */
     public void broadcastToChannel(Long channelId, WebSocketMessage message) {
-        // Redis로 메시지 발행
-        // RedisMessageSubscriber가 모든 서버(로컬 포함)에서 이 메시지를 수신하여
-        // 각 서버의 로컬 WebSocket 클라이언트에게 브로드캐스팅합니다.
-        // 이렇게 하면 같은 서버에서 생성된 메시지도 한 번만 전송됩니다.
         redisMessagePublisher.publish(message);
     }
 
@@ -142,7 +129,6 @@ public class WebSocketMessageService {
     public void resendMissedMessages(Long channelId, Long lastSequenceNumber, Authentication authentication) {
         log.info("Resending missed messages for channel {} after sequence {}", channelId, lastSequenceNumber);
         
-        // 누락된 메시지 조회
         List<MessageResponse> missedMessages = messageService.getMessagesAfterSequence(channelId, lastSequenceNumber);
         
         if (missedMessages.isEmpty()) {
@@ -152,7 +138,6 @@ public class WebSocketMessageService {
         
         log.info("Found {} missed messages for channel {}", missedMessages.size(), channelId);
         
-        // 각 메시지를 WebSocket 메시지로 변환하여 전송
         String userDestination = authentication != null
                 ? "/queue/resend." + authentication.getName()
                 : "/queue/resend";
@@ -185,19 +170,16 @@ public class WebSocketMessageService {
             return;
         }
 
-        // JWT에서 authUserId 추출
         String authUserId = extractAuthUserId(authentication);
         if (authUserId == null) {
             throw new IllegalArgumentException("Authentication required");
         }
 
-        // User 조회
         User user = userService.findByAuthUserId(authUserId);
 
         log.debug("Processing read receipt: userId={}, channelId={}, sequenceNumber={}", 
                 user.getId(), message.getChannelId(), message.getSequenceNumber());
 
-        // Read receipt 업데이트 (Redis에 저장하고 브로드캐스트)
         readReceiptService.updateReadReceipt(
                 user.getId(),
                 message.getChannelId(),
@@ -205,12 +187,6 @@ public class WebSocketMessageService {
         );
     }
 
-    /**
-     * Authentication에서 authUserId를 추출합니다.
-     * 
-     * @param authentication 인증 정보
-     * @return authUserId (JWT의 sub 클레임), 없으면 null
-     */
     private String extractAuthUserId(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof Jwt)) {
             return null;
