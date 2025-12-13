@@ -56,5 +56,15 @@ public class Workspace {
         this.name = name;
         this.owner = owner;
     }
+
+    /**
+     * Determines the workspace role for a given user.
+     * Returns OWNER if the user is the workspace owner, otherwise MEMBER.
+     */
+    public WorkspaceRole getRoleForUser(Long userId) {
+        return this.owner.getId().equals(userId)
+            ? WorkspaceRole.OWNER
+            : WorkspaceRole.MEMBER;
+    }
 }
 
