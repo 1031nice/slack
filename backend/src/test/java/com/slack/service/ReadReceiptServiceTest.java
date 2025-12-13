@@ -102,8 +102,6 @@ class ReadReceiptServiceTest {
     @DisplayName("read receipt를 업데이트할 수 있다")
     void updateReadReceipt_Success() {
         // given
-        List<Long> memberIds = Arrays.asList(1L, 2L, 3L);
-        when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
         lenient().doNothing().when(valueOperations).set(anyString(), anyString());
 
         // when
@@ -113,7 +111,7 @@ class ReadReceiptServiceTest {
         String expectedKey = "read_receipt:1:100";
         verify(valueOperations, times(1)).set(eq(expectedKey), eq("50"));
         verify(messagingTemplate, times(1)).convertAndSend(
-                eq("/topic/channel.100"), 
+                eq("/topic/channel.100"),
                 any(com.slack.dto.websocket.WebSocketMessage.class)
         );
     }
@@ -218,15 +216,13 @@ class ReadReceiptServiceTest {
     @DisplayName("read receipt 업데이트 시 채널 멤버에게 브로드캐스트된다")
     void updateReadReceipt_BroadcastsToChannelMembers() {
         // given
-        List<Long> memberIds = Arrays.asList(1L, 2L, 3L);
-        when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
         lenient().doNothing().when(valueOperations).set(anyString(), anyString());
 
         // when
         readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, SEQUENCE_NUMBER);
 
         // then
-        ArgumentCaptor<com.slack.dto.websocket.WebSocketMessage> messageCaptor = 
+        ArgumentCaptor<com.slack.dto.websocket.WebSocketMessage> messageCaptor =
                 ArgumentCaptor.forClass(com.slack.dto.websocket.WebSocketMessage.class);
         verify(messagingTemplate, times(1)).convertAndSend(
                 eq("/topic/channel.100"),
