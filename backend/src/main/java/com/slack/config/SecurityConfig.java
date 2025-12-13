@@ -15,9 +15,12 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final CorsConfigurationSource corsConfigurationSource;
+    private final JwtToUserAuthenticationConverter jwtToUserAuthenticationConverter;
 
-    public SecurityConfig(CorsConfigurationSource corsConfigurationSource) {
+    public SecurityConfig(CorsConfigurationSource corsConfigurationSource,
+                         JwtToUserAuthenticationConverter jwtToUserAuthenticationConverter) {
         this.corsConfigurationSource = corsConfigurationSource;
+        this.jwtToUserAuthenticationConverter = jwtToUserAuthenticationConverter;
     }
 
     @Bean
@@ -31,6 +34,7 @@ public class SecurityConfig {
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt
                     .jwkSetUri("http://localhost:8081/oauth2/jwks")
+                    .jwtAuthenticationConverter(jwtToUserAuthenticationConverter)
                 )
             )
             .authorizeHttpRequests(auth -> auth
