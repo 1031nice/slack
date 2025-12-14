@@ -39,7 +39,7 @@ public class MentionService {
 
     /**
      * Parse @username mentions from message content
-     * 
+     *
      * @param content Message content
      * @return Set of unique usernames (without @ symbol)
      */
@@ -61,14 +61,14 @@ public class MentionService {
     /**
      * Create mention notifications for a message
      * Finds users by name (case-insensitive) and creates Mention entities
-     * 
+     *
      * @param message Message that contains mentions
      * @return List of created Mention entities
      */
     @Transactional
     public List<Mention> createMentions(Message message) {
         List<Mention> createdMentions = new ArrayList<>();
-        
+
         if (message == null || message.getContent() == null || message.getId() == null) {
             return createdMentions;
         }
@@ -78,31 +78,51 @@ public class MentionService {
             return createdMentions;
         }
 
-        for (String username : mentionedUsernames) {
-            List<User> users = userRepository.findByNameIgnoreCase(username);
-            
-            for (User user : users) {
-                if (user.getId().equals(message.getUser().getId())) {
-                    continue;
-                }
+        // Batch query all users by mentioned usernames (1 query instead of N)
+        List<User> allUsers = userRepository.findByNameIgnoreCaseIn(mentionedUsernames);
 
-                Mention existingMention = mentionRepository
-                        .findByMessageIdAndMentionedUserId(message.getId(), user.getId())
-                        .orElse(null);
+        // Filter out self-mentions
+        List<User> validUsers = allUsers.stream()
+                .filter(user -> !user.getId().equals(message.getUser().getId()))
+                .toList();
 
-                if (existingMention == null) {
-                    Mention mention = Mention.builder()
-                            .message(message)
-                            .mentionedUser(user)
-                            .isRead(false)
-                            .build();
-                    
-                    Mention saved = mentionRepository.save(mention);
-                    createdMentions.add(saved);
-                    log.debug("Created mention: messageId={}, mentionedUserId={}", message.getId(), user.getId());
-                    sendMentionNotification(saved);
-                }
-            }
+        if (validUsers.isEmpty()) {
+            return createdMentions;
+        }
+
+        List<Long> userIds = validUsers.stream()
+                .map(User::getId)
+                .toList();
+
+        // Batch query existing mentions (1 query instead of M)
+        List<Mention> existingMentions = mentionRepository
+                .findByMessageIdAndMentionedUserIdIn(message.getId(), userIds);
+
+        Set<Long> existingUserIds = existingMentions.stream()
+                .map(mention -> mention.getMentionedUser().getId())
+                .collect(java.util.stream.Collectors.toSet());
+
+        // Filter out duplicates and build new mentions
+        List<Mention> newMentions = validUsers.stream()
+                .filter(user -> !existingUserIds.contains(user.getId()))
+                .map(user -> Mention.builder()
+                        .message(message)
+                        .mentionedUser(user)
+                        .isRead(false)
+                        .build())
+                .toList();
+
+        // Batch save all mentions (1 query instead of K)
+        if (!newMentions.isEmpty()) {
+            List<Mention> savedMentions = mentionRepository.saveAll(newMentions);
+            createdMentions.addAll(savedMentions);
+
+            // Send notifications for each saved mention
+            savedMentions.forEach(mention -> {
+                log.debug("Created mention: messageId={}, mentionedUserId={}",
+                        message.getId(), mention.getMentionedUser().getId());
+                sendMentionNotification(mention);
+            });
         }
 
         return createdMentions;
@@ -110,7 +130,7 @@ public class MentionService {
 
     /**
      * Get all mentions for a user
-     * 
+     *
      * @param userId User ID
      * @return List of mentions
      */
@@ -120,7 +140,7 @@ public class MentionService {
 
     /**
      * Get unread mentions for a user
-     * 
+     *
      * @param userId User ID
      * @return List of unread mentions
      */
@@ -130,7 +150,7 @@ public class MentionService {
 
     /**
      * Mark mention as read
-     * 
+     *
      * @param mentionId Mention ID
      */
     @Transactional
@@ -143,7 +163,7 @@ public class MentionService {
 
     /**
      * Send WebSocket notification to mentioned user
-     * 
+     *
      * @param mention Mention entity
      */
     private void sendMentionNotification(Mention mention) {
@@ -159,8 +179,8 @@ public class MentionService {
 
             String userDestination = "/queue/mentions." + mention.getMentionedUser().getId();
             messagingTemplate.convertAndSend(userDestination, notification);
-            
-            log.debug("Sent mention notification to user {}: messageId={}", 
+
+            log.debug("Sent mention notification to user {}: messageId={}",
                     mention.getMentionedUser().getId(), mention.getMessage().getId());
         } catch (Exception e) {
             log.error("Failed to send mention notification", e);
