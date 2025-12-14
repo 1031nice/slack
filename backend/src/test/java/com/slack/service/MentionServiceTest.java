@@ -208,17 +208,17 @@ class MentionServiceTest {
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findByNameIgnoreCase("Jane")).thenReturn(Arrays.asList(testUser2));
-        when(userRepository.findByNameIgnoreCase("Bob")).thenReturn(Arrays.asList(testUser3));
-        when(mentionRepository.findByMessageIdAndMentionedUserId(1000L, 2L))
-                .thenReturn(Optional.empty());
-        when(mentionRepository.findByMessageIdAndMentionedUserId(1000L, 3L))
-                .thenReturn(Optional.empty());
-        when(mentionRepository.save(any(Mention.class))).thenAnswer(invocation -> {
-            Mention mention = invocation.getArgument(0);
-            setField(mention, "id", 5000L);
-            setField(mention, "createdAt", LocalDateTime.now());
-            return mention;
+        // Batch query mock
+        when(userRepository.findByNameIgnoreCaseIn(anySet())).thenReturn(Arrays.asList(testUser2, testUser3));
+        when(mentionRepository.findByMessageIdAndMentionedUserIdIn(eq(1000L), anyList()))
+                .thenReturn(Arrays.asList());
+        when(mentionRepository.saveAll(anyList())).thenAnswer(invocation -> {
+            List<Mention> mentions = invocation.getArgument(0);
+            for (int i = 0; i < mentions.size(); i++) {
+                setField(mentions.get(i), "id", 5000L + i);
+                setField(mentions.get(i), "createdAt", LocalDateTime.now());
+            }
+            return mentions;
         });
 
         // when
@@ -226,14 +226,14 @@ class MentionServiceTest {
 
         // then
         assertThat(mentions).hasSize(2);
-        
-        ArgumentCaptor<Mention> mentionCaptor = ArgumentCaptor.forClass(Mention.class);
-        verify(mentionRepository, times(2)).save(mentionCaptor.capture());
-        
-        List<Mention> savedMentions = mentionCaptor.getAllValues();
+
+        ArgumentCaptor<List<Mention>> mentionCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mentionRepository, times(1)).saveAll(mentionCaptor.capture());
+
+        List<Mention> savedMentions = mentionCaptor.getValue();
         assertThat(savedMentions).extracting(m -> m.getMentionedUser().getId())
                 .containsExactlyInAnyOrder(2L, 3L);
-        
+
         // Verify WebSocket notifications were sent
         verify(messagingTemplate, times(2)).convertAndSend(anyString(), any(com.slack.dto.websocket.WebSocketMessage.class));
     }
@@ -253,14 +253,15 @@ class MentionServiceTest {
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findByNameIgnoreCase("John")).thenReturn(Arrays.asList(testUser1));
+        // Batch query mock
+        when(userRepository.findByNameIgnoreCaseIn(anySet())).thenReturn(Arrays.asList(testUser1));
 
         // when
         List<Mention> mentions = mentionService.createMentions(testMessage);
 
         // then
         assertThat(mentions).isEmpty();
-        verify(mentionRepository, never()).save(any(Mention.class));
+        verify(mentionRepository, never()).saveAll(anyList());
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(com.slack.dto.websocket.WebSocketMessage.class));
     }
 
@@ -279,14 +280,15 @@ class MentionServiceTest {
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findByNameIgnoreCase("NonExistentUser")).thenReturn(Arrays.asList());
+        // Batch query mock - return empty list
+        when(userRepository.findByNameIgnoreCaseIn(anySet())).thenReturn(Arrays.asList());
 
         // when
         List<Mention> mentions = mentionService.createMentions(testMessage);
 
         // then
         assertThat(mentions).isEmpty();
-        verify(mentionRepository, never()).save(any(Mention.class));
+        verify(mentionRepository, never()).saveAll(anyList());
     }
 
     @Test
@@ -304,16 +306,17 @@ class MentionServiceTest {
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findByNameIgnoreCase("Jane")).thenReturn(Arrays.asList(testUser2));
-        when(mentionRepository.findByMessageIdAndMentionedUserId(1000L, 2L))
-                .thenReturn(Optional.of(testMention));
+        // Batch query mock - return existing mention
+        when(userRepository.findByNameIgnoreCaseIn(anySet())).thenReturn(Arrays.asList(testUser2));
+        when(mentionRepository.findByMessageIdAndMentionedUserIdIn(eq(1000L), anyList()))
+                .thenReturn(Arrays.asList(testMention));
 
         // when
         List<Mention> mentions = mentionService.createMentions(testMessage);
 
         // then
         assertThat(mentions).isEmpty();
-        verify(mentionRepository, never()).save(any(Mention.class));
+        verify(mentionRepository, never()).saveAll(anyList());
     }
 
     @Test
@@ -407,17 +410,17 @@ class MentionServiceTest {
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
 
-        when(userRepository.findByNameIgnoreCase("JANE")).thenReturn(Arrays.asList(testUser2));
-        when(userRepository.findByNameIgnoreCase("bob")).thenReturn(Arrays.asList(testUser3));
-        when(mentionRepository.findByMessageIdAndMentionedUserId(1000L, 2L))
-                .thenReturn(Optional.empty());
-        when(mentionRepository.findByMessageIdAndMentionedUserId(1000L, 3L))
-                .thenReturn(Optional.empty());
-        when(mentionRepository.save(any(Mention.class))).thenAnswer(invocation -> {
-            Mention mention = invocation.getArgument(0);
-            setField(mention, "id", 5000L);
-            setField(mention, "createdAt", LocalDateTime.now());
-            return mention;
+        // Batch query mock
+        when(userRepository.findByNameIgnoreCaseIn(anySet())).thenReturn(Arrays.asList(testUser2, testUser3));
+        when(mentionRepository.findByMessageIdAndMentionedUserIdIn(eq(1000L), anyList()))
+                .thenReturn(Arrays.asList());
+        when(mentionRepository.saveAll(anyList())).thenAnswer(invocation -> {
+            List<Mention> mentions = invocation.getArgument(0);
+            for (int i = 0; i < mentions.size(); i++) {
+                setField(mentions.get(i), "id", 5000L + i);
+                setField(mentions.get(i), "createdAt", LocalDateTime.now());
+            }
+            return mentions;
         });
 
         // when
@@ -425,7 +428,9 @@ class MentionServiceTest {
 
         // then
         assertThat(mentions).hasSize(2);
-        verify(userRepository, times(1)).findByNameIgnoreCase("JANE");
-        verify(userRepository, times(1)).findByNameIgnoreCase("bob");
+        // Verify batch query was called with the case-insensitive usernames
+        ArgumentCaptor<Set<String>> usernameCaptor = ArgumentCaptor.forClass(Set.class);
+        verify(userRepository, times(1)).findByNameIgnoreCaseIn(usernameCaptor.capture());
+        assertThat(usernameCaptor.getValue()).containsExactlyInAnyOrder("JANE", "bob");
     }
 }

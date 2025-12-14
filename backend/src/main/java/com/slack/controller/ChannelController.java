@@ -27,8 +27,9 @@ public class ChannelController {
     @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
     public ResponseEntity<ChannelResponse> createChannel(
             @PathVariable Long workspaceId,
-            @Valid @RequestBody ChannelCreateRequest request) {
-        ChannelResponse response = channelService.createChannel(workspaceId, request);
+            @Valid @RequestBody ChannelCreateRequest request,
+            @AuthenticationPrincipal User user) {
+        ChannelResponse response = channelService.createChannel(workspaceId, request, user.getId());
         return created(response);
     }
 

@@ -12,10 +12,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /**
      * Find users by name (case-insensitive)
      * Used for @mention detection
-     * 
+     *
      * @param name User name (case-insensitive)
      * @return List of users with matching name
      */
     List<User> findByNameIgnoreCase(String name);
+
+    /**
+     * Find users by names (case-insensitive, batch query)
+     * Prevents N+1 query problem when processing multiple @mentions
+     *
+     * @param names Collection of user names (case-insensitive)
+     * @return List of users with matching names
+     */
+    List<User> findByNameIgnoreCaseIn(java.util.Collection<String> names);
 }
 
