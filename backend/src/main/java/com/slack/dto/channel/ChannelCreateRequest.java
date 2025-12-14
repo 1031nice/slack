@@ -14,15 +14,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChannelCreateRequest {
-    
+
     @NotBlank(message = "Channel name is required")
     @Size(min = 1, max = 255, message = "Channel name must be between 1 and 255 characters")
     private String name;
-    
+
     @NotNull(message = "Channel type is required")
     private ChannelType type;
-    
-    @NotNull(message = "Created by user ID is required")
-    private Long createdBy;
 }
 

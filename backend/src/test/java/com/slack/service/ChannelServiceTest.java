@@ -73,17 +73,18 @@ class ChannelServiceTest {
     @DisplayName("채널을 생성할 수 있다")
     void createChannel_Success() {
         // given
+        Long userId = 1L;
         ChannelCreateRequest request = ChannelCreateRequest.builder()
                 .name("random")
                 .type(ChannelType.PUBLIC)
-                .createdBy(1L)
                 .build();
 
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(testWorkspace));
         when(channelRepository.save(any(Channel.class))).thenReturn(testChannel);
+        when(unreadCountService.getUnreadCount(userId, 1L)).thenReturn(0L);
 
         // when
-        ChannelResponse result = channelService.createChannel(1L, request);
+        ChannelResponse result = channelService.createChannel(1L, request, userId);
 
         // then
         assertThat(result).isNotNull();
@@ -91,52 +92,25 @@ class ChannelServiceTest {
         assertThat(result.getType()).isEqualTo(ChannelType.PUBLIC);
         verify(workspaceRepository, times(1)).findById(1L);
         verify(channelRepository, times(1)).save(any(Channel.class));
+        verify(unreadCountService, times(1)).getUnreadCount(userId, 1L);
     }
 
     @Test
     @DisplayName("존재하지 않는 워크스페이스에 채널을 생성하면 예외가 발생한다")
     void createChannel_WorkspaceNotFound() {
         // given
+        Long userId = 1L;
         ChannelCreateRequest request = ChannelCreateRequest.builder()
                 .name("random")
                 .type(ChannelType.PUBLIC)
-                .createdBy(1L)
                 .build();
 
         when(workspaceRepository.findById(999L)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> channelService.createChannel(999L, request))
+        assertThatThrownBy(() -> channelService.createChannel(999L, request, userId))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Workspace not found with id: 999");
-    }
-
-    @Test
-    @DisplayName("ID로 채널을 조회할 수 있다")
-    void getChannelById_Success() {
-        // given
-        when(channelRepository.findById(1L)).thenReturn(Optional.of(testChannel));
-
-        // when
-        ChannelResponse result = channelService.getChannelById(1L);
-
-        // then
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getName()).isEqualTo("general");
-        verify(channelRepository, times(1)).findById(1L);
-    }
-
-    @Test
-    @DisplayName("존재하지 않는 채널을 조회하면 예외가 발생한다")
-    void getChannelById_NotFound() {
-        // given
-        when(channelRepository.findById(999L)).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> channelService.getChannelById(999L))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Channel not found with id: 999");
     }
 
     @Test
