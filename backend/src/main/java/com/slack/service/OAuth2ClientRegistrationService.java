@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -15,27 +16,26 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * DEV/TEST ONLY - Auto-registers OAuth2 client on startup.
+ */
 @Slf4j
 @Service
+@Profile("!prod")
 @RequiredArgsConstructor
 public class OAuth2ClientRegistrationService implements ApplicationRunner {
 
+    private final RestTemplate restTemplate;
     @Value("${auth.server.url:http://localhost:8081}")
     private String authServerUrl;
-
     @Value("${auth.client.id:slack}")
     private String clientId;
-
     @Value("${auth.client.secret:slack-secret-key}")
     private String clientSecret;
-
     @Value("${auth.client.redirect-uris:http://localhost:3000/auth/callback,http://localhost:3000/signup/callback,http://localhost:3000/callback}")
     private String redirectUris;
-
     @Value("${auth.client.auto-register:false}")
     private boolean autoRegister;
-
-    private final RestTemplate restTemplate;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -54,7 +54,7 @@ public class OAuth2ClientRegistrationService implements ApplicationRunner {
             log.warn("Failed to register OAuth2 client on startup: {}", e.getMessage());
             log.info("This is not critical - the backend will continue to run.");
             log.info("Please register the client manually at {}/api/v1/oauth2/clients", authServerUrl);
-            log.info("Required client info: ID='{}', Secret='{}', Grant Types=[authorization_code, refresh_token, client_credentials]", 
+            log.info("Required client info: ID='{}', Secret='{}', Grant Types=[authorization_code, refresh_token, client_credentials]",
                     clientId, clientSecret);
         }
     }
