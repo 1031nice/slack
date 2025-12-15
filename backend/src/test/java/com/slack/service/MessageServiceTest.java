@@ -30,7 +30,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("MessageService 단위 테스트")
+@DisplayName("MessageService Unit Tests")
 class MessageServiceTest {
 
     @Mock
@@ -97,7 +97,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("메시지를 생성할 수 있다")
+    @DisplayName("Should create message successfully")
     void createMessage_Success() {
         // given
         MessageCreateRequest request = MessageCreateRequest.builder()
@@ -123,7 +123,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 채널에 메시지를 생성하면 예외가 발생한다")
+    @DisplayName("Should throw exception when channel not found")
     void createMessage_ChannelNotFound() {
         // given
         MessageCreateRequest request = MessageCreateRequest.builder()
@@ -140,7 +140,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("ID로 메시지를 조회할 수 있다")
+    @DisplayName("Should get message by ID successfully")
     void getMessageById_Success() {
         // given
         when(messageRepository.findById(1L)).thenReturn(Optional.of(testMessage));
@@ -156,7 +156,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 메시지를 조회하면 예외가 발생한다")
+    @DisplayName("Should throw exception when message not found")
     void getMessageById_NotFound() {
         // given
         when(messageRepository.findById(999L)).thenReturn(Optional.empty());
@@ -168,7 +168,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("채널의 메시지 목록을 조회할 수 있다 - beforeId 없음")
+    @DisplayName("Should get channel messages without beforeId")
     void getChannelMessages_WithoutBeforeId() throws Exception {
         // given
         Message message1 = Message.builder()
@@ -199,7 +199,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("채널의 메시지 목록을 조회할 수 있다 - beforeId 있음")
+    @DisplayName("Should get channel messages with beforeId")
     void getChannelMessages_WithBeforeId() throws Exception {
         // given
         Message message1 = Message.builder()
@@ -222,7 +222,7 @@ class MessageServiceTest {
     }
 
     @Test
-    @DisplayName("limit 파라미터가 최대값을 초과하면 100으로 제한된다")
+    @DisplayName("Should limit page size to max when limit exceeds maximum")
     void getChannelMessages_LimitExceedsMax() {
         // given
         when(messageRepository.findMessagesByChannelId(eq(1L), isNull(), any(Pageable.class)))
@@ -237,6 +237,136 @@ class MessageServiceTest {
                 isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
+    }
+
+    @Test
+    @DisplayName("Should get messages after sequence number successfully")
+    void getMessagesAfterSequence_Success() throws Exception {
+        // given
+        Message message1 = Message.builder()
+                .channel(testChannel)
+                .user(testUser)
+                .content("Message 1")
+                .build();
+        setField(message1, "id", 1L);
+        setField(message1, "sequenceNumber", 5L);
+
+        Message message2 = Message.builder()
+                .channel(testChannel)
+                .user(testUser)
+                .content("Message 2")
+                .build();
+        setField(message2, "id", 2L);
+        setField(message2, "sequenceNumber", 6L);
+
+        when(messageRepository.findMessagesAfterSequence(1L, 3L))
+                .thenReturn(Arrays.asList(message1, message2));
+
+        // when
+        List<MessageResponse> result = messageService.getMessagesAfterSequence(1L, 3L);
+
+        // then
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(MessageResponse::getSequenceNumber)
+                .containsExactly(5L, 6L);
+        verify(messageRepository, times(1)).findMessagesAfterSequence(1L, 3L);
+    }
+
+    @Test
+    @DisplayName("Should return empty list when no messages after sequence")
+    void getMessagesAfterSequence_NoMessages() {
+        // given
+        when(messageRepository.findMessagesAfterSequence(1L, 999L))
+                .thenReturn(Arrays.asList());
+
+        // when
+        List<MessageResponse> result = messageService.getMessagesAfterSequence(1L, 999L);
+
+        // then
+        assertThat(result).isEmpty();
+        verify(messageRepository, times(1)).findMessagesAfterSequence(1L, 999L);
+    }
+
+    @Test
+    @DisplayName("Should throw exception when channelId is null for getMessagesAfterSequence")
+    void getMessagesAfterSequence_NullChannelId() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getMessagesAfterSequence(null, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid channel ID");
+
+        verify(messageRepository, never()).findMessagesAfterSequence(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when channelId is negative for getMessagesAfterSequence")
+    void getMessagesAfterSequence_NegativeChannelId() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getMessagesAfterSequence(-1L, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid channel ID");
+
+        verify(messageRepository, never()).findMessagesAfterSequence(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when sequence number is null")
+    void getMessagesAfterSequence_NullSequenceNumber() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getMessagesAfterSequence(1L, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid sequence number");
+
+        verify(messageRepository, never()).findMessagesAfterSequence(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when sequence number is negative")
+    void getMessagesAfterSequence_NegativeSequenceNumber() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getMessagesAfterSequence(1L, -1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid sequence number");
+
+        verify(messageRepository, never()).findMessagesAfterSequence(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when channelId is invalid for getMessageById")
+    void getMessageById_InvalidChannelId() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getMessageById(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid message ID");
+
+        assertThatThrownBy(() -> messageService.getMessageById(0L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid message ID");
+
+        assertThatThrownBy(() -> messageService.getMessageById(-1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid message ID");
+
+        verify(messageRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when channelId is invalid for getChannelMessages")
+    void getChannelMessages_InvalidChannelId() {
+        // when & then
+        assertThatThrownBy(() -> messageService.getChannelMessages(null, 50, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid channel ID");
+
+        assertThatThrownBy(() -> messageService.getChannelMessages(0L, 50, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid channel ID");
+
+        assertThatThrownBy(() -> messageService.getChannelMessages(-1L, 50, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid channel ID");
+
+        verify(messageRepository, never()).findMessagesByChannelId(anyLong(), any(), any());
     }
 }
 
