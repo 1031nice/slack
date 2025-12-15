@@ -7,7 +7,9 @@ import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
 import com.slack.exception.ChannelNotFoundException;
 import com.slack.exception.WorkspaceNotFoundException;
+import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +27,8 @@ public class ChannelService {
 
     private final ChannelRepository channelRepository;
     private final WorkspaceRepository workspaceRepository;
-    private final PermissionService permissionService;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final ChannelMemberRepository channelMemberRepository;
     private final UnreadCountService unreadCountService;
 
     @Transactional
@@ -63,11 +66,12 @@ public class ChannelService {
     private boolean canUserAccessChannel(Channel channel, Long userId) {
         // PUBLIC channels: accessible to workspace members
         if (channel.getType() == ChannelType.PUBLIC) {
-            return permissionService.isWorkspaceMember(userId, channel.getWorkspace().getId());
+            return workspaceMemberRepository.existsByWorkspaceIdAndUserId(
+                    channel.getWorkspace().getId(), userId);
         }
 
         // PRIVATE channels: accessible to channel members only
-        return permissionService.isChannelMember(userId, channel.getId());
+        return channelMemberRepository.existsByChannelIdAndUserId(channel.getId(), userId);
     }
 
     /**

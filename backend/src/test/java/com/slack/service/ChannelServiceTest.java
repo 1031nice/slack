@@ -5,7 +5,9 @@ import com.slack.domain.channel.ChannelType;
 import com.slack.domain.workspace.Workspace;
 import com.slack.dto.channel.ChannelCreateRequest;
 import com.slack.dto.channel.ChannelResponse;
+import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +38,10 @@ class ChannelServiceTest {
     private WorkspaceRepository workspaceRepository;
 
     @Mock
-    private PermissionService permissionService;
+    private WorkspaceMemberRepository workspaceMemberRepository;
+
+    @Mock
+    private ChannelMemberRepository channelMemberRepository;
 
     @Mock
     private UnreadCountService unreadCountService;
@@ -139,7 +144,7 @@ class ChannelServiceTest {
         setField(channel2, "updatedAt", java.time.LocalDateTime.now());
 
         when(channelRepository.findByWorkspaceId(1L)).thenReturn(Arrays.asList(channel1, channel2));
-        when(permissionService.isWorkspaceMember(userId, 1L)).thenReturn(true);
+        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, userId)).thenReturn(true);
         when(unreadCountService.getUnreadCount(anyLong(), anyLong())).thenReturn(0L);
 
         // when
@@ -150,7 +155,7 @@ class ChannelServiceTest {
         assertThat(result).extracting(ChannelResponse::getName)
                 .containsExactlyInAnyOrder("general", "random");
         verify(channelRepository, times(1)).findByWorkspaceId(1L);
-        verify(permissionService, times(2)).isWorkspaceMember(userId, 1L);
+        verify(workspaceMemberRepository, times(2)).existsByWorkspaceIdAndUserId(1L, userId);
     }
 }
 
