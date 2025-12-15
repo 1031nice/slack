@@ -1,11 +1,9 @@
 package com.slack.controller;
 
 import com.slack.domain.user.User;
-import com.slack.dto.message.MessageCreateRequest;
 import com.slack.dto.message.MessageResponse;
 import com.slack.service.MessageService;
 import com.slack.service.UnreadCountService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,9 +12,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static com.slack.controller.ResponseHelper.created;
 import static com.slack.controller.ResponseHelper.ok;
 
+/**
+ * REST controller for message operations.
+ * Message creation is handled via WebSocket only for real-time communication.
+ * This controller provides read-only operations.
+ */
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -24,15 +26,6 @@ public class MessageController {
 
     private final MessageService messageService;
     private final UnreadCountService unreadCountService;
-
-    @PostMapping("/channels/{channelId}/messages")
-    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
-    public ResponseEntity<MessageResponse> createMessage(
-            @PathVariable Long channelId,
-            @Valid @RequestBody MessageCreateRequest request) {
-        MessageResponse response = messageService.createMessage(channelId, request);
-        return created(response);
-    }
 
     @GetMapping("/channels/{channelId}/messages")
     @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
