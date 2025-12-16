@@ -128,12 +128,12 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 4. **Read Receipts**:
    - Real-time via WebSocket: `{type: 'READ', userId, channelId, lastReadSequence}`
-   - Update Redis instantly, batch sync to PostgreSQL
+   - Update Redis instantly, async sync to PostgreSQL
 
 5. **Eventual Consistency**:
    - Redis is cache (fast, may be lost)
    - PostgreSQL is source of truth (slower, durable)
-   - Periodic sync: Redis → PostgreSQL every 5-10 seconds
+   - Immediate async write to PostgreSQL (@Async, non-blocking)
    - Crash recovery: Restore from PostgreSQL
 
 **Trade-off Analysis**:
@@ -143,15 +143,9 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
   - Cost: 10x latency, complexity, availability risk
   - Benefit: Acceptable for read status (not critical like message content)
 - **Sync Strategy**:
-  - Write-through to Redis (fast)
-  - Async batch write to PostgreSQL (durable)
-  - Measure consistency lag (target: <10 seconds)
-
-**Performance Goals**:
-- Unread count updates: 10,000+ ops/sec
-- Mention notification latency: <100ms P95
-- Read receipt broadcast: <50ms P95
-- Consistency lag: <10 seconds P95
+  - Write-through to Redis (fast, real-time)
+  - Immediate async write to PostgreSQL (durable, non-blocking)
+  - Expected lag: <100ms (thread pool + DB write)
 
 **Learning Focus**:
 - Eventual consistency trade-offs
@@ -178,13 +172,13 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 - Pagination for long threads (cursor-based, not offset)
 - **Idempotency**: Client-generated message IDs to prevent duplicate threads
 
-**Performance Test**:
-- Measure query time: threads with 100 replies
-- Before optimization: ~500ms (N+1 queries)
-- After optimization: <50ms (batch fetch)
-- Cache hit rate: >80% for active threads
+**Learning Focus**:
+- N+1 query problem and solutions
+- `@EntityGraph` and batch fetch optimization
+- Hot data caching strategies
+- Measuring query performance before/after optimization
 
-**Deliverable**: "Thread UI with <100ms query performance"
+**Deliverable**: "Thread UI with optimized query performance"
 
 ---
 
@@ -226,7 +220,7 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 - Data consistency between PostgreSQL and Elasticsearch
 - Index optimization (sharding, replicas)
 
-**Deliverable**: "Search 10M+ messages in <200ms P95"
+**Deliverable**: "Full-text search with PostgreSQL vs Elasticsearch comparison"
 
 ---
 
@@ -265,7 +259,6 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 **Performance Goals**:
 - Reduce network traffic by 80%+ (only receive relevant messages)
 - Measure: messages received vs messages delivered ratio
-- Maintain <50ms P95 latency
 
 **Trade-off Analysis**:
 | Approach | Pros | Cons |
@@ -309,7 +302,7 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 **Performance**:
 - [ ] Load test: 10,000 concurrent WebSocket connections
-- [ ] Database query audit (<10ms P95 for all queries)
+- [ ] Database query audit and optimization
 - [ ] Connection pool tuning (HikariCP)
 
 **Documentation**:

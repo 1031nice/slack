@@ -46,3 +46,4 @@ yarn-error.log*
 # Local files (git으로 관리하지 않음)
 local/
 
+CLAUDE.md
