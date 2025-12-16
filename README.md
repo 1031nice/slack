@@ -120,11 +120,17 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
    - Notification queue (could be Redis List or DB table)
    - WebSocket notification: `{type: 'MENTION', messageId, channelId}`
 
-3. **Read Receipts**:
+3. **Unreads View**:
+   - Aggregate view of all unread messages across channels
+   - Sorting: newest first, oldest first, by channel
+   - API: `GET /api/unreads?sort=newest&limit=50`
+   - Uses ZSET's `ZREVRANGE` for time-ordered retrieval
+
+4. **Read Receipts**:
    - Real-time via WebSocket: `{type: 'READ', userId, channelId, lastReadSequence}`
    - Update Redis instantly, batch sync to PostgreSQL
 
-4. **Eventual Consistency**:
+5. **Eventual Consistency**:
    - Redis is cache (fast, may be lost)
    - PostgreSQL is source of truth (slower, durable)
    - Periodic sync: Redis → PostgreSQL every 5-10 seconds
