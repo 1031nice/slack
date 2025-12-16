@@ -27,5 +27,14 @@ public interface ChannelMemberRepository extends JpaRepository<ChannelMember, Lo
      */
     @Query("SELECT cm.user.id FROM ChannelMember cm WHERE cm.channel.id = :channelId")
     List<Long> findUserIdsByChannelId(@Param("channelId") Long channelId);
+
+    /**
+     * 특정 user가 멤버로 있는 모든 channel ID를 조회합니다.
+     * 
+     * @param userId User ID
+     * @return List of channel IDs where the user is a member
+     */
+    @Query("SELECT cm.channel.id FROM ChannelMember cm WHERE cm.user.id = :userId")
+    List<Long> findChannelIdsByUserId(@Param("userId") Long userId);
 }
 
