@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { fetchChannels, fetchMessages, fetchWorkspaces, Channel, Message, Workspace, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
@@ -283,9 +284,17 @@ export default function Home() {
         <div className="flex-1 flex flex-col">
           <div className="p-4 border-b bg-white">
             <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold">
-                {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
-              </h1>
+              <div className="flex items-center space-x-4">
+                <h1 className="text-xl font-bold">
+                  {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
+                </h1>
+                <Link
+                  href="/unreads"
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  View Unreads
+                </Link>
+              </div>
               <div className="flex items-center space-x-2">
                 {error && (
                   <div className="text-sm text-red-500 bg-red-50 px-3 py-1 rounded">
