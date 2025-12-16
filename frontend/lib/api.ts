@@ -31,6 +31,21 @@ export interface Message {
   updatedAt: string;
 }
 
+export interface UnreadMessage {
+  messageId: number;
+  channelId: number;
+  channelName: string;
+  userId: number;
+  content: string;
+  createdAt: string;
+  sequenceNumber: number | null;
+}
+
+export interface UnreadsViewResponse {
+  unreadMessages: UnreadMessage[];
+  totalCount: number;
+}
+
 export interface Workspace {
   id: number;
   name: string;
@@ -333,5 +348,43 @@ export async function acceptInvitation(request: AcceptInvitationRequest, token: 
       throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
     }
     throw new ApiError('An unexpected error occurred while accepting invitation.');
+  }
+}
+
+export async function fetchUnreads(
+  token: string,
+  sort?: string,
+  limit?: number
+): Promise<UnreadsViewResponse> {
+  try {
+    const params = new URLSearchParams();
+    if (sort) params.append('sort', sort);
+    if (limit) params.append('limit', limit.toString());
+
+    const response = await fetch(`${API_BASE_URL}/unreads?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to fetch unreads: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while fetching unreads.');
   }
 }
