@@ -96,6 +96,36 @@ public class UnreadCountService {
                 .collect(java.util.stream.Collectors.toSet());
     }
 
+    /**
+     * Get unread message IDs for a user in a channel, sorted by timestamp.
+     * Uses ZREVRANGE for descending (newest first) or ZRANGE for ascending (oldest first).
+     *
+     * @param userId User ID
+     * @param channelId Channel ID
+     * @param descending If true, returns newest first (ZREVRANGE), otherwise oldest first (ZRANGE)
+     * @return Set of message IDs as strings, sorted by timestamp
+     */
+    public Set<String> getUnreadMessageIdsSorted(Long userId, Long channelId, boolean descending) {
+        String key = buildKey(userId, channelId);
+        Set<Object> result;
+
+        if (descending) {
+            // ZREVRANGE: newest first (descending by timestamp)
+            result = redisTemplate.opsForZSet().reverseRange(key, 0, -1);
+        } else {
+            // ZRANGE: oldest first (ascending by timestamp)
+            result = redisTemplate.opsForZSet().range(key, 0, -1);
+        }
+
+        if (result == null || result.isEmpty()) {
+            return Set.of();
+        }
+
+        return result.stream()
+                .map(Object::toString)
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
     private String buildKey(Long userId, Long channelId) {
         return UNREAD_KEY_PREFIX + userId + ":" + channelId;
     }
