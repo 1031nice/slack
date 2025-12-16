@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { fetchUnreads, UnreadMessage, ApiError } from '@/lib/api';
 import { getAuthToken } from '@/lib/auth';
 
@@ -60,7 +61,15 @@ export default function UnreadsView() {
     <div className="flex-1 flex flex-col h-screen bg-white">
       <div className="p-4 border-b bg-white">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">Unreads</h1>
+          <div className="flex items-center space-x-4">
+            <Link
+              href="/"
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              ← Back to Channels
+            </Link>
+            <h1 className="text-xl font-bold">Unreads</h1>
+          </div>
           <div className="text-sm text-gray-500">
             {totalCount} unread message{totalCount !== 1 ? 's' : ''}
           </div>
