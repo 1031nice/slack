@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { fetchChannels, fetchMessages, fetchWorkspaces, Channel, Message, Workspace, ApiError } from '@/lib/api';
+import { fetchChannels, fetchMessages, fetchWorkspaces, fetchUnreads, createChannel, Channel, Message, Workspace, UnreadMessage, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
 import { getAuthToken, isValidToken, removeAuthToken } from '@/lib/auth';
 import WorkspaceList from '@/components/WorkspaceList';
@@ -12,6 +11,7 @@ import ChannelList from '@/components/ChannelList';
 import MessageList from '@/components/MessageList';
 import MessageInput from '@/components/MessageInput';
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
+import CreateChannelModal from '@/components/CreateChannelModal';
 import InviteUserModal from '@/components/InviteUserModal';
 
 export default function Home() {
@@ -25,8 +25,12 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
+  const [isCreateChannelModalOpen, setIsCreateChannelModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<number | null>(null);
+  const [showUnreads, setShowUnreads] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState<UnreadMessage[]>([]);
+  const [unreadSort, setUnreadSort] = useState<'newest' | 'oldest' | 'channel'>('newest');
 
   const { isConnected, error: wsError, subscribeToChannel, sendMessage } = useWebSocket(token);
 
@@ -130,7 +134,7 @@ export default function Home() {
 
   // 선택된 채널의 메시지 로드
   useEffect(() => {
-    if (!selectedChannelId || !token) {
+    if (!selectedChannelId || !token || showUnreads || !selectedWorkspaceId) {
       return;
     }
 
@@ -138,6 +142,13 @@ export default function Home() {
       .then((messages) => {
         setMessages(messages.reverse()); // 최신 메시지가 아래에 오도록
         setError(null);
+        // 메시지를 가져온 후 채널 목록을 갱신하여 unreadCount 업데이트
+        return fetchChannels(selectedWorkspaceId, token);
+      })
+      .then((updatedChannels) => {
+        if (updatedChannels) {
+          setChannels(updatedChannels);
+        }
       })
       .catch((err) => {
         console.error('Failed to fetch messages:', err);
@@ -154,11 +165,38 @@ export default function Home() {
           setError('Failed to load messages. Please try again.');
         }
       });
-  }, [selectedChannelId, token]);
+  }, [selectedChannelId, token, showUnreads, selectedWorkspaceId]);
 
-  // WebSocket으로 메시지 구독
+  // Unreads 로드
   useEffect(() => {
-    if (!selectedChannelId || !isConnected) {
+    if (!showUnreads || !token) {
+      return;
+    }
+
+    fetchUnreads(token, unreadSort, 50)
+      .then((response) => {
+        setUnreadMessages(response.unreadMessages);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch unreads:', err);
+        if (err instanceof ApiError) {
+          setError(err.message);
+          if (err.statusCode === 401) {
+            removeAuthToken();
+            setToken(null);
+            router.push('/login');
+            return;
+          }
+        } else {
+          setError('Failed to load unreads. Please try again.');
+        }
+      });
+  }, [showUnreads, token, unreadSort]);
+
+  // WebSocket으로 메시지 구독 (현재 선택된 채널만)
+  useEffect(() => {
+    if (!selectedChannelId || !isConnected || showUnreads) {
       return;
     }
 
@@ -178,11 +216,31 @@ export default function Home() {
     });
 
     return unsubscribe;
-  }, [selectedChannelId, isConnected, subscribeToChannel]);
+  }, [selectedChannelId, isConnected, subscribeToChannel, showUnreads]);
+
+  // 주기적으로 채널 목록을 갱신하여 unreadCount 업데이트
+  useEffect(() => {
+    if (!selectedWorkspaceId || !token) {
+      return;
+    }
+
+    // 초기 로드 후 5초마다 채널 목록 갱신
+    const interval = setInterval(() => {
+      fetchChannels(selectedWorkspaceId, token)
+        .then((updatedChannels) => {
+          setChannels(updatedChannels);
+        })
+        .catch((err) => {
+          console.error('Failed to refresh channels:', err);
+        });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [selectedWorkspaceId, token]);
 
   const handleSendMessage = useCallback(
     (content: string) => {
-      if (!selectedChannelId || !isConnected) {
+      if (!selectedChannelId || !isConnected || showUnreads) {
         setError('Cannot send message: not connected or no channel selected.');
         return;
       }
@@ -194,8 +252,32 @@ export default function Home() {
         setError(null);
       }
     },
-    [selectedChannelId, isConnected, sendMessage]
+    [selectedChannelId, isConnected, sendMessage, showUnreads]
   );
+
+  const handleSelectChannel = useCallback((channelId: number) => {
+    setShowUnreads(false);
+    setSelectedChannelId(channelId);
+  }, []);
+
+  const handleSelectUnreads = useCallback(() => {
+    setShowUnreads(true);
+    setSelectedChannelId(null);
+  }, []);
+
+  const handleCreateChannel = useCallback(() => {
+    if (!token || !selectedWorkspaceId) {
+      setError('Please select a workspace first.');
+      return;
+    }
+    setIsCreateChannelModalOpen(true);
+  }, [token, selectedWorkspaceId]);
+
+  const handleChannelCreated = useCallback((channel: Channel) => {
+    setChannels((prev) => [...prev, channel]);
+    setSelectedChannelId(channel.id);
+    setShowUnreads(false);
+  }, []);
 
   const handleCreateWorkspace = useCallback(() => {
     console.log('Create workspace button clicked');
@@ -279,21 +361,56 @@ export default function Home() {
         <ChannelList
           channels={channels}
           selectedChannelId={selectedChannelId}
-          onSelectChannel={setSelectedChannelId}
+          onSelectChannel={handleSelectChannel}
+          onSelectUnreads={handleSelectUnreads}
+          isUnreadsSelected={showUnreads}
+          onCreateChannel={handleCreateChannel}
         />
         <div className="flex-1 flex flex-col">
           <div className="p-4 border-b bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <h1 className="text-xl font-bold">
-                  {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
-                </h1>
-                <Link
-                  href="/unreads"
-                  className="text-sm text-blue-600 hover:text-blue-800 underline"
-                >
-                  View Unreads
-                </Link>
+                {showUnreads ? (
+                  <>
+                    <h1 className="text-xl font-bold">Unreads</h1>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setUnreadSort('newest')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          unreadSort === 'newest'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Newest
+                      </button>
+                      <button
+                        onClick={() => setUnreadSort('oldest')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          unreadSort === 'oldest'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        Oldest
+                      </button>
+                      <button
+                        onClick={() => setUnreadSort('channel')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          unreadSort === 'channel'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        By Channel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <h1 className="text-xl font-bold">
+                    {channels.find((c) => c.id === selectedChannelId)?.name || 'Select a channel'}
+                  </h1>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 {error && (
@@ -311,8 +428,43 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <MessageList messages={messages} />
-          <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected} />
+          {showUnreads ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {unreadMessages.length === 0 ? (
+                <div className="text-gray-500 text-center mt-8">
+                  <p className="text-lg mb-2">No unread messages</p>
+                  <p className="text-sm">You're all caught up!</p>
+                </div>
+              ) : (
+                <>
+                  {unreadMessages.map((message) => (
+                    <div key={`${message.channelId}-${message.messageId}`} className="mb-4 border-b pb-4 last:border-b-0">
+                      <div className="flex items-start space-x-2">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                          {message.userId}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="font-semibold text-blue-600">#{message.channelName}</span>
+                            <span className="font-semibold">User {message.userId}</span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(message.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="text-gray-800">{message.content}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <MessageList messages={messages} />
+              <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected} />
+            </>
+          )}
         </div>
       </div>
       {token && (
@@ -323,6 +475,15 @@ export default function Home() {
             onSuccess={handleWorkspaceCreated}
             token={token}
           />
+          {selectedWorkspaceId && (
+            <CreateChannelModal
+              isOpen={isCreateChannelModalOpen}
+              onClose={() => setIsCreateChannelModalOpen(false)}
+              onSuccess={handleChannelCreated}
+              workspaceId={selectedWorkspaceId}
+              token={token}
+            />
+          )}
           {inviteWorkspaceId && (
             <InviteUserModal
               isOpen={isInviteModalOpen}

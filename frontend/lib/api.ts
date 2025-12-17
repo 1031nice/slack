@@ -19,6 +19,7 @@ export interface Channel {
   createdBy: number;
   createdAt: string;
   updatedAt: string;
+  unreadCount?: number;
 }
 
 export interface Message {
@@ -56,6 +57,11 @@ export interface Workspace {
 
 export interface WorkspaceCreateRequest {
   name: string;
+}
+
+export interface ChannelCreateRequest {
+  name: string;
+  type: 'PUBLIC' | 'PRIVATE';
 }
 
 export interface WorkspaceInviteRequest {
@@ -116,6 +122,48 @@ export async function fetchChannels(workspaceId: number, token: string): Promise
       throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
     }
     throw new ApiError('An unexpected error occurred while fetching channels.');
+  }
+}
+
+export async function createChannel(
+  workspaceId: number,
+  request: ChannelCreateRequest,
+  token: string
+): Promise<Channel> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/channels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiError('Authentication failed. Please log in again.', 401, response.statusText);
+      } else if (response.status === 403) {
+        throw new ApiError('You do not have permission to create channels in this workspace.', 403, response.statusText);
+      } else if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.message || 'Invalid request. Please check your input.', 400, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Failed to create channel: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred while creating channel.');
   }
 }
 
