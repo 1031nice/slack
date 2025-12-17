@@ -41,6 +41,9 @@ class WorkspaceServiceTest {
     @Mock
     private ChannelService channelService;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private WorkspaceService workspaceService;
 

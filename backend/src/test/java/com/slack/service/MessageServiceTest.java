@@ -48,6 +48,9 @@ class MessageServiceTest {
     @Mock
     private MentionService mentionService;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private MessageService messageService;
 

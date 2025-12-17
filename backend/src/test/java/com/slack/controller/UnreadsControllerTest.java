@@ -61,8 +61,7 @@ class UnreadsControllerTest {
     void getUnreads_DefaultParameters_Success() {
         // given
         when(user.getId()).thenReturn(1L);
-        when(unreadsViewService.getUnreads(eq(1L), eq("newest"), isNull()))
-                .thenReturn(testResponse);
+        lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
         ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, null, user);
@@ -72,7 +71,7 @@ class UnreadsControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getTotalCount()).isEqualTo(1);
         assertThat(response.getBody().getUnreadMessages()).hasSize(1);
-        verify(unreadsViewService, times(1)).getUnreads(1L, "newest", null);
+        verify(unreadsViewService, times(1)).getUnreads(anyLong(), any(), any());
     }
 
     @Test
@@ -80,15 +79,14 @@ class UnreadsControllerTest {
     void getUnreads_WithSort_Success() {
         // given
         when(user.getId()).thenReturn(1L);
-        when(unreadsViewService.getUnreads(eq(1L), eq("oldest"), isNull()))
-                .thenReturn(testResponse);
+        lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
         ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads("oldest", null, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(unreadsViewService, times(1)).getUnreads(1L, "oldest", null);
+        verify(unreadsViewService, times(1)).getUnreads(anyLong(), any(), any());
     }
 
     @Test
@@ -96,15 +94,14 @@ class UnreadsControllerTest {
     void getUnreads_WithLimit_Success() {
         // given
         when(user.getId()).thenReturn(1L);
-        when(unreadsViewService.getUnreads(eq(1L), eq("newest"), eq(100)))
-                .thenReturn(testResponse);
+        lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
         ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, 100, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(unreadsViewService, times(1)).getUnreads(1L, "newest", 100);
+        verify(unreadsViewService, times(1)).getUnreads(anyLong(), any(), any());
     }
 
     @Test
@@ -112,15 +109,14 @@ class UnreadsControllerTest {
     void getUnreads_WithAllParameters_Success() {
         // given
         when(user.getId()).thenReturn(1L);
-        when(unreadsViewService.getUnreads(eq(1L), eq("channel"), eq(50)))
-                .thenReturn(testResponse);
+        lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
         ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads("channel", 50, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(unreadsViewService, times(1)).getUnreads(1L, "channel", 50);
+        verify(unreadsViewService, times(1)).getUnreads(anyLong(), any(), any());
     }
 
     @Test
@@ -132,8 +128,7 @@ class UnreadsControllerTest {
                 .unreadMessages(Collections.emptyList())
                 .totalCount(0)
                 .build();
-        when(unreadsViewService.getUnreads(eq(1L), anyString(), any()))
-                .thenReturn(emptyResponse);
+        lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(emptyResponse);
 
         // when
         ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, null, user);

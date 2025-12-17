@@ -46,6 +46,9 @@ class ChannelServiceTest {
     @Mock
     private UnreadCountService unreadCountService;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private ChannelService channelService;
 

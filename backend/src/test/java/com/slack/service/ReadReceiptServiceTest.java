@@ -48,6 +48,9 @@ class ReadReceiptServiceTest {
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private ReadReceiptService readReceiptService;
 

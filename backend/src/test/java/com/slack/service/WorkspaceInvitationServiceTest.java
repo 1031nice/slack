@@ -47,6 +47,9 @@ class WorkspaceInvitationServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private WorkspaceInvitationService invitationService;
 
@@ -96,9 +99,10 @@ class WorkspaceInvitationServiceTest {
     void inviteUser_Success() {
         // given
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(workspace));
-        when(userService.findByAuthUserId("auth-user-1")).thenReturn(inviter);
+        when(userService.findById(inviter.getId())).thenReturn(inviter);
         when(invitationRepository.existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING))
                 .thenReturn(false);
+        doNothing().when(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
         when(invitationRepository.save(any(WorkspaceInvitation.class))).thenAnswer(invocation -> {
             WorkspaceInvitation invitation = invocation.getArgument(0);
             try {
@@ -121,7 +125,8 @@ class WorkspaceInvitationServiceTest {
         assertThat(response.getExpiresAt()).isAfter(LocalDateTime.now());
 
         verify(workspaceRepository).findById(1L);
-        verify(userService).findByAuthUserId("auth-user-1");
+        verify(userService).findById(inviter.getId());
+        verify(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
         verify(invitationRepository).existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING);
         verify(invitationRepository).save(any(WorkspaceInvitation.class));
     }
@@ -146,9 +151,10 @@ class WorkspaceInvitationServiceTest {
     void inviteUser_DuplicateInvitation() {
         // given
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(workspace));
-        when(userService.findByAuthUserId("auth-user-1")).thenReturn(inviter);
+        when(userService.findById(inviter.getId())).thenReturn(inviter);
         when(invitationRepository.existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING))
                 .thenReturn(true);
+        doNothing().when(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
 
         // when & then
         assertThatThrownBy(() -> invitationService.inviteUser(1L, inviter.getId(), inviteRequest))
