@@ -37,6 +37,7 @@ public class ReadReceiptService {
     private final ReadReceiptRepository readReceiptRepository;
     private final UserRepository userRepository;
     private final ChannelRepository channelRepository;
+    private final PermissionService permissionService;
 
     /**
      * Update read receipt for a user in a channel
@@ -114,11 +115,15 @@ public class ReadReceiptService {
 
     /**
      * Get all read receipts for a channel from Redis
-     * 
+     *
      * @param channelId Channel ID
+     * @param userId user ID requesting the read receipts
      * @return Map of userId -> lastReadSequence
      */
-    public java.util.Map<Long, Long> getChannelReadReceipts(Long channelId) {
+    public java.util.Map<Long, Long> getChannelReadReceipts(Long channelId, Long userId) {
+        // Authorization: must have channel access
+        permissionService.requireChannelAccess(userId, channelId);
+
         List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
         
         java.util.Map<Long, Long> readReceipts = new java.util.HashMap<>();

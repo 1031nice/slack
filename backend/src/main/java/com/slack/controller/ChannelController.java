@@ -7,7 +7,6 @@ import com.slack.service.ChannelService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +23,6 @@ public class ChannelController {
     private final ChannelService channelService;
 
     @PostMapping("/workspaces/{workspaceId}/channels")
-    @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
     public ResponseEntity<ChannelResponse> createChannel(
             @PathVariable Long workspaceId,
             @Valid @RequestBody ChannelCreateRequest request,
@@ -34,7 +32,6 @@ public class ChannelController {
     }
 
     @GetMapping("/workspaces/{workspaceId}/channels")
-    @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
     public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal User user) {
@@ -43,7 +40,6 @@ public class ChannelController {
     }
 
     @GetMapping("/channels/{channelId}")
-    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<ChannelResponse> getChannelById(
             @PathVariable Long channelId,
             @AuthenticationPrincipal User user) {

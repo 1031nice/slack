@@ -8,7 +8,6 @@ import com.slack.service.WorkspaceInvitationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,12 +26,11 @@ public class WorkspaceInvitationController {
      * Owner 또는 Admin만 초대할 수 있습니다.
      */
     @PostMapping("/{workspaceId}/invitations")
-    @PreAuthorize("@permissionService.hasWorkspaceRoleByAuthUserId(authentication.principal.subject, #workspaceId, T(com.slack.domain.workspace.WorkspaceRole).ADMIN)")
     public ResponseEntity<WorkspaceInviteResponse> inviteUser(
             @PathVariable Long workspaceId,
             @Valid @RequestBody WorkspaceInviteRequest request,
             @AuthenticationPrincipal User user) {
-        WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, user.getAuthUserId(), request);
+        WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, user.getId(), request);
         return created(response);
     }
 

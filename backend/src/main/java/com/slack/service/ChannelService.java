@@ -30,9 +30,13 @@ public class ChannelService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final ChannelMemberRepository channelMemberRepository;
     private final UnreadCountService unreadCountService;
+    private final PermissionService permissionService;
 
     @Transactional
     public ChannelResponse createChannel(Long workspaceId, ChannelCreateRequest request, Long userId) {
+        // Authorization: must be workspace member to create channel
+        permissionService.requireWorkspaceMember(userId, workspaceId);
+
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + workspaceId));
 
@@ -48,12 +52,18 @@ public class ChannelService {
     }
 
     public ChannelResponse getChannelById(Long id, Long userId) {
+        // Authorization: must have channel access
+        permissionService.requireChannelAccess(userId, id);
+
         Channel channel = channelRepository.findById(id)
                 .orElseThrow(() -> new ChannelNotFoundException("Channel not found with id: " + id));
         return toResponse(channel, userId);
     }
 
     public List<ChannelResponse> getWorkspaceChannels(Long workspaceId, Long userId) {
+        // Authorization: must be workspace member to list channels
+        permissionService.requireWorkspaceMember(userId, workspaceId);
+
         return channelRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(channel -> canUserAccessChannel(channel, userId))
                 .map(channel -> toResponse(channel, userId))

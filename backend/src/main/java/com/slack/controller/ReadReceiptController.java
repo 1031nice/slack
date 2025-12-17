@@ -4,7 +4,6 @@ import com.slack.domain.user.User;
 import com.slack.service.ReadReceiptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,13 +20,12 @@ public class ReadReceiptController {
 
     /**
      * Get read receipt for a user in a channel
-     * 
+     *
      * @param channelId Channel ID
-     * @param jwt JWT token
+     * @param user Authenticated user
      * @return Last read sequence number
      */
     @GetMapping("/channels/{channelId}/read-receipt")
-    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<Map<String, Long>> getReadReceipt(
             @PathVariable Long channelId,
             @AuthenticationPrincipal User user) {
@@ -37,14 +35,16 @@ public class ReadReceiptController {
 
     /**
      * Get all read receipts for a channel
-     * 
+     *
      * @param channelId Channel ID
+     * @param user Authenticated user
      * @return Map of userId -> lastReadSequence
      */
     @GetMapping("/channels/{channelId}/read-receipts")
-    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
-    public ResponseEntity<Map<Long, Long>> getChannelReadReceipts(@PathVariable Long channelId) {
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(channelId);
+    public ResponseEntity<Map<Long, Long>> getChannelReadReceipts(
+            @PathVariable Long channelId,
+            @AuthenticationPrincipal User user) {
+        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(channelId, user.getId());
         return ok(readReceipts);
     }
 }

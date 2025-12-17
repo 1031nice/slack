@@ -6,7 +6,6 @@ import com.slack.service.MessageService;
 import com.slack.service.UnreadCountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +27,6 @@ public class MessageController {
     private final UnreadCountService unreadCountService;
 
     @GetMapping("/channels/{channelId}/messages")
-    @PreAuthorize("@permissionService.canAccessChannelByAuthUserId(authentication.principal.subject, #channelId)")
     public ResponseEntity<List<MessageResponse>> getChannelMessages(
             @PathVariable Long channelId,
             @RequestParam(required = false) Integer limit,
@@ -36,14 +34,15 @@ public class MessageController {
             @AuthenticationPrincipal User user) {
         unreadCountService.clearUnreadCount(user.getId(), channelId);
 
-        List<MessageResponse> messages = messageService.getChannelMessages(channelId, limit, before);
+        List<MessageResponse> messages = messageService.getChannelMessages(channelId, user.getId(), limit, before);
         return ok(messages);
     }
 
     @GetMapping("/messages/{messageId}")
-    @PreAuthorize("@permissionService.canAccessMessageByAuthUserId(authentication.principal.subject, #messageId)")
-    public ResponseEntity<MessageResponse> getMessageById(@PathVariable Long messageId) {
-        MessageResponse response = messageService.getMessageById(messageId);
+    public ResponseEntity<MessageResponse> getMessageById(
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal User user) {
+        MessageResponse response = messageService.getMessageById(messageId, user.getId());
         return ok(response);
     }
 }

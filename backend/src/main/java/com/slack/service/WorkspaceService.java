@@ -31,6 +31,7 @@ public class WorkspaceService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserService userService;
     private final ChannelService channelService;
+    private final PermissionService permissionService;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
@@ -57,7 +58,10 @@ public class WorkspaceService {
         return toResponse(saved);
     }
 
-    public WorkspaceResponse getWorkspaceById(Long id) {
+    public WorkspaceResponse getWorkspaceById(Long id, Long userId) {
+        // Authorization: must be workspace member
+        permissionService.requireWorkspaceMember(userId, id);
+
         Workspace workspace = workspaceRepository.findById(id)
                 .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + id));
         return toResponse(workspace);

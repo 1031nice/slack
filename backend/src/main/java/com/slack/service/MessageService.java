@@ -36,6 +36,7 @@ public class MessageService {
     private final UserService userService;
     private final UnreadCountService unreadCountService;
     private final MentionService mentionService;
+    private final PermissionService permissionService;
 
     /**
      * Create a new message in a channel.
@@ -77,12 +78,16 @@ public class MessageService {
      * Get message by ID.
      *
      * @param id message ID
+     * @param userId user ID requesting the message
      * @return message response
      * @throws IllegalArgumentException if id is invalid
      * @throws MessageNotFoundException if message not found
      */
-    public MessageResponse getMessageById(Long id) {
+    public MessageResponse getMessageById(Long id, Long userId) {
         validateMessageId(id);
+
+        // Authorization: must have access to message's channel
+        permissionService.requireMessageAccess(userId, id);
 
         Message message = messageRepository.findById(id)
                 .orElseThrow(() -> new MessageNotFoundException("Message not found with id: " + id));
@@ -93,13 +98,17 @@ public class MessageService {
      * Get messages in a channel with pagination.
      *
      * @param channelId channel ID
+     * @param userId user ID requesting the messages
      * @param limit maximum number of messages to return (default 50, max 100)
      * @param before fetch messages before this message ID (for pagination)
      * @return list of message responses
      * @throws IllegalArgumentException if channelId is invalid
      */
-    public List<MessageResponse> getChannelMessages(Long channelId, Integer limit, Long before) {
+    public List<MessageResponse> getChannelMessages(Long channelId, Long userId, Integer limit, Long before) {
         validateChannelId(channelId);
+
+        // Authorization: must have channel access
+        permissionService.requireChannelAccess(userId, channelId);
 
         // Default 50, max 100
         int pageSize = (limit != null && limit > 0)

@@ -33,21 +33,25 @@ public class WorkspaceInvitationService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserService userService;
+    private final PermissionService permissionService;
 
     /**
      * 워크스페이스에 사용자를 초대합니다.
-     * 
+     *
      * @param workspaceId 워크스페이스 ID
-     * @param inviterAuthUserId 초대하는 사용자의 authUserId
+     * @param inviterId 초대하는 사용자의 ID
      * @param request 초대 요청 (이메일)
      * @return 생성된 초대 정보
      */
     @Transactional
-    public WorkspaceInviteResponse inviteUser(Long workspaceId, String inviterAuthUserId, WorkspaceInviteRequest request) {
+    public WorkspaceInviteResponse inviteUser(Long workspaceId, Long inviterId, WorkspaceInviteRequest request) {
+        // Authorization: must be workspace admin
+        permissionService.requireWorkspaceAdmin(inviterId, workspaceId);
+
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + workspaceId));
-        
-        User inviter = userService.findByAuthUserId(inviterAuthUserId);
+
+        User inviter = userService.findById(inviterId);
         
         // 이미 PENDING 상태의 초대가 있는지 확인
         if (invitationRepository.existsByWorkspaceIdAndEmailAndStatus(workspaceId, request.getEmail(), InvitationStatus.PENDING)) {

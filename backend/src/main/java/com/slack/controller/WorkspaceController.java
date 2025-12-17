@@ -7,7 +7,6 @@ import com.slack.service.WorkspaceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,9 +38,10 @@ public class WorkspaceController {
     }
 
     @GetMapping("/{workspaceId}")
-    @PreAuthorize("@permissionService.isWorkspaceMemberByAuthUserId(authentication.principal.subject, #workspaceId)")
-    public ResponseEntity<WorkspaceResponse> getWorkspaceById(@PathVariable Long workspaceId) {
-        WorkspaceResponse response = workspaceService.getWorkspaceById(workspaceId);
+    public ResponseEntity<WorkspaceResponse> getWorkspaceById(
+            @PathVariable Long workspaceId,
+            @AuthenticationPrincipal User user) {
+        WorkspaceResponse response = workspaceService.getWorkspaceById(workspaceId, user.getId());
         return ok(response);
     }
 }
