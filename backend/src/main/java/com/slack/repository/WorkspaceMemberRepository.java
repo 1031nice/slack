@@ -21,5 +21,13 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
      * 특정 user가 멤버로 있는 모든 WorkspaceMember를 조회합니다.
      */
     List<WorkspaceMember> findByUserId(Long userId);
+
+    /**
+     * 특정 workspace의 모든 멤버를 조회합니다.
+     * 
+     * @param workspaceId Workspace ID
+     * @return List of WorkspaceMember for the workspace
+     */
+    List<WorkspaceMember> findByWorkspaceId(Long workspaceId);
 }
 

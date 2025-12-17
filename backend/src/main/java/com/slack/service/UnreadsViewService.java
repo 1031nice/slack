@@ -1,12 +1,14 @@
 package com.slack.service;
 
 import com.slack.domain.channel.Channel;
+import com.slack.domain.channel.ChannelType;
 import com.slack.domain.message.Message;
 import com.slack.dto.unread.UnreadMessageResponse;
 import com.slack.dto.unread.UnreadsViewResponse;
 import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
 import com.slack.repository.MessageRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ public class UnreadsViewService {
     private final UnreadCountService unreadCountService;
     private final MessageRepository messageRepository;
     private final ChannelRepository channelRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     /**
      * Get aggregated unread messages across all channels for a user.
@@ -44,8 +47,29 @@ public class UnreadsViewService {
         String sortOption = (sort != null && !sort.isEmpty()) ? sort.toLowerCase() : "newest";
         int messageLimit = (limit != null && limit > 0) ? Math.min(limit, MAX_LIMIT) : DEFAULT_LIMIT;
 
-        // Get all channel IDs where user is a member
-        List<Long> channelIds = channelMemberRepository.findChannelIdsByUserId(userId);
+        // Get all channel IDs where user can access:
+        // 1. PRIVATE channels: user is a ChannelMember
+        // 2. PUBLIC channels: user is a WorkspaceMember
+        Set<Long> channelIds = new HashSet<>();
+        
+        // Get PRIVATE channels where user is a member
+        List<Long> privateChannelIds = channelMemberRepository.findChannelIdsByUserId(userId);
+        channelIds.addAll(privateChannelIds);
+        
+        // Get PUBLIC channels from all workspaces where user is a member
+        List<Long> workspaceIds = workspaceMemberRepository.findByUserId(userId).stream()
+                .map(wm -> wm.getWorkspace().getId())
+                .collect(Collectors.toList());
+        
+        for (Long workspaceId : workspaceIds) {
+            List<Channel> publicChannels = channelRepository.findByWorkspaceId(workspaceId).stream()
+                    .filter(channel -> channel.getType() == ChannelType.PUBLIC)
+                    .collect(Collectors.toList());
+            for (Channel channel : publicChannels) {
+                channelIds.add(channel.getId());
+            }
+        }
+        
         if (channelIds.isEmpty()) {
             return UnreadsViewResponse.builder()
                     .unreadMessages(Collections.emptyList())

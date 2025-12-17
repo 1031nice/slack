@@ -1,13 +1,19 @@
 package com.slack.service;
 
+import com.slack.domain.channel.Channel;
+import com.slack.domain.channel.ChannelType;
 import com.slack.repository.ChannelMemberRepository;
+import com.slack.repository.ChannelRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Unread count tracking service using Redis Sorted Set
@@ -29,6 +35,8 @@ public class UnreadCountService {
     
     private final RedisTemplate<String, Object> redisTemplate;
     private final ChannelMemberRepository channelMemberRepository;
+    private final ChannelRepository channelRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     /**
      * Get unread count for a user in a channel.
@@ -44,13 +52,33 @@ public class UnreadCountService {
      * Add unread message for all channel members except the sender.
      * Uses Redis Pipeline to batch operations and reduce network round trips.
      *
+     * For PUBLIC channels: includes all workspace members
+     * For PRIVATE channels: includes only ChannelMember entries
+     *
      * Performance: O(N) where N = number of channel members
      * Network calls: 1 (pipelined) instead of N (individual)
      */
     public void incrementUnreadCount(Long channelId, Long messageId, Long senderId, long timestamp) {
-        List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
+        Channel channel = channelRepository.findById(channelId).orElse(null);
+        if (channel == null) {
+            return;
+        }
 
-        if (memberIds == null || memberIds.isEmpty()) {
+        Set<Long> memberIds = new HashSet<>();
+
+        if (channel.getType() == ChannelType.PUBLIC) {
+            // PUBLIC channel: get all workspace members
+            List<Long> workspaceMemberIds = workspaceMemberRepository.findByWorkspaceId(channel.getWorkspace().getId()).stream()
+                    .map(wm -> wm.getUser().getId())
+                    .collect(Collectors.toList());
+            memberIds.addAll(workspaceMemberIds);
+        } else {
+            // PRIVATE channel: get only ChannelMember entries
+            List<Long> channelMemberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
+            memberIds.addAll(channelMemberIds);
+        }
+
+        if (memberIds.isEmpty()) {
             return;
         }
 
