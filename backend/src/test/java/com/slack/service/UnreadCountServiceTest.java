@@ -1,6 +1,11 @@
 package com.slack.service;
 
+import com.slack.domain.channel.Channel;
+import com.slack.domain.channel.ChannelType;
+import com.slack.domain.workspace.Workspace;
 import com.slack.repository.ChannelMemberRepository;
+import com.slack.repository.ChannelRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,9 +17,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +40,12 @@ class UnreadCountServiceTest {
     private ChannelMemberRepository channelMemberRepository;
 
     @Mock
+    private ChannelRepository channelRepository;
+
+    @Mock
+    private WorkspaceMemberRepository workspaceMemberRepository;
+
+    @Mock
     private ZSetOperations<String, Object> zSetOperations;
 
     @InjectMocks
@@ -42,11 +55,44 @@ class UnreadCountServiceTest {
     private static final Long CHANNEL_ID = 100L;
     private static final Long MESSAGE_ID = 1000L;
     private static final Long SENDER_ID = 1L;
+    private static final Long WORKSPACE_ID = 1L;
     private static final long TIMESTAMP = 1234567890L;
 
+    private Channel testChannel;
+    private Workspace testWorkspace;
+
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+
+        // Create test workspace
+        testWorkspace = Workspace.builder()
+                .name("Test Workspace")
+                .owner(com.slack.domain.user.User.builder()
+                        .authUserId("auth-1")
+                        .email("owner@example.com")
+                        .name("Owner")
+                        .build())
+                .build();
+        setField(testWorkspace, "id", WORKSPACE_ID);
+
+        // Create test channel (PRIVATE for these tests)
+        testChannel = Channel.builder()
+                .workspace(testWorkspace)
+                .name("test-channel")
+                .type(ChannelType.PRIVATE)
+                .createdBy(1L)
+                .build();
+        setField(testChannel, "id", CHANNEL_ID);
+
+        // Mock channelRepository to return test channel (lenient for tests that don't use it)
+        lenient().when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(testChannel));
+    }
+
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     @Test

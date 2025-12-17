@@ -7,6 +7,7 @@ import com.slack.dto.unread.UnreadsViewResponse;
 import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
 import com.slack.repository.MessageRepository;
+import com.slack.repository.WorkspaceMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class UnreadsViewServiceTest {
     @Mock
     private ChannelRepository channelRepository;
 
+    @Mock
+    private WorkspaceMemberRepository workspaceMemberRepository;
+
     @InjectMocks
     private UnreadsViewService unreadsViewService;
 
@@ -56,6 +60,11 @@ class UnreadsViewServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        // Mock workspaceMemberRepository to return empty list by default
+        // (tests focus on PRIVATE channels via ChannelMember)
+        when(workspaceMemberRepository.findByUserId(anyLong()))
+                .thenReturn(Collections.emptyList());
+
         channel1 = Channel.builder()
                 .name(CHANNEL_NAME_1)
                 .type(com.slack.domain.channel.ChannelType.PUBLIC)
@@ -280,7 +289,8 @@ class UnreadsViewServiceTest {
                 channelMemberRepository,
                 unreadCountService,
                 messageRepository,
-                channelRepository
+                channelRepository,
+                workspaceMemberRepository
         );
         UnreadsViewResponse response = service.getUnreads(USER_ID, "newest", 500); // exceeds MAX_LIMIT (200)
 

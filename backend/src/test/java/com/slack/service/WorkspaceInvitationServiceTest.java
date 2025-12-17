@@ -110,7 +110,7 @@ class WorkspaceInvitationServiceTest {
         });
 
         // when
-        var response = invitationService.inviteUser(1L, "auth-user-1", inviteRequest);
+        var response = invitationService.inviteUser(1L, inviter.getId(), inviteRequest);
 
         // then
         assertThat(response).isNotNull();
@@ -133,7 +133,7 @@ class WorkspaceInvitationServiceTest {
         when(workspaceRepository.findById(1L)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> invitationService.inviteUser(1L, "auth-user-1", inviteRequest))
+        assertThatThrownBy(() -> invitationService.inviteUser(1L, inviter.getId(), inviteRequest))
                 .isInstanceOf(WorkspaceNotFoundException.class)
                 .hasMessageContaining("Workspace not found");
 
@@ -151,7 +151,7 @@ class WorkspaceInvitationServiceTest {
                 .thenReturn(true);
 
         // when & then
-        assertThatThrownBy(() -> invitationService.inviteUser(1L, "auth-user-1", inviteRequest))
+        assertThatThrownBy(() -> invitationService.inviteUser(1L, inviter.getId(), inviteRequest))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("An invitation already exists");
 

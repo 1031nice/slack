@@ -102,7 +102,7 @@ class WorkspaceServiceTest {
         when(workspaceRepository.findById(1L)).thenReturn(Optional.of(testWorkspace));
 
         // when
-        WorkspaceResponse result = workspaceService.getWorkspaceById(1L);
+        WorkspaceResponse result = workspaceService.getWorkspaceById(1L, testUser.getId());
 
         // then
         assertThat(result).isNotNull();
@@ -118,7 +118,7 @@ class WorkspaceServiceTest {
         when(workspaceRepository.findById(999L)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> workspaceService.getWorkspaceById(999L))
+        assertThatThrownBy(() -> workspaceService.getWorkspaceById(999L, testUser.getId()))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Workspace not found with id: 999");
     }

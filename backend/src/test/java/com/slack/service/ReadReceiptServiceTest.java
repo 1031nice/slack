@@ -184,7 +184,7 @@ class ReadReceiptServiceTest {
         when(valueOperations.get("read_receipt:2:100")).thenReturn("45");
 
         // when
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID);
+        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
 
         // then
         assertThat(readReceipts).hasSize(2);
@@ -203,7 +203,7 @@ class ReadReceiptServiceTest {
         when(valueOperations.get("read_receipt:3:100")).thenReturn("30");
 
         // when
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID);
+        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
 
         // then
         assertThat(readReceipts).hasSize(2);

@@ -146,7 +146,7 @@ class MessageServiceTest {
         when(messageRepository.findById(1L)).thenReturn(Optional.of(testMessage));
 
         // when
-        MessageResponse result = messageService.getMessageById(1L);
+        MessageResponse result = messageService.getMessageById(1L, testUser.getId());
 
         // then
         assertThat(result).isNotNull();
@@ -162,7 +162,7 @@ class MessageServiceTest {
         when(messageRepository.findById(999L)).thenReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> messageService.getMessageById(999L))
+        assertThatThrownBy(() -> messageService.getMessageById(999L, testUser.getId()))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Message not found with id: 999");
     }
@@ -189,7 +189,7 @@ class MessageServiceTest {
                 .thenReturn(Arrays.asList(message1, message2));
 
         // when
-        List<MessageResponse> result = messageService.getChannelMessages(1L, 50, null);
+        List<MessageResponse> result = messageService.getChannelMessages(1L, testUser.getId(), 50, null);
 
         // then
         assertThat(result).hasSize(2);
@@ -213,7 +213,7 @@ class MessageServiceTest {
                 .thenReturn(Arrays.asList(message1));
 
         // when
-        List<MessageResponse> result = messageService.getChannelMessages(1L, 50, 10L);
+        List<MessageResponse> result = messageService.getChannelMessages(1L, testUser.getId(), 50, 10L);
 
         // then
         assertThat(result).hasSize(1);
@@ -229,7 +229,7 @@ class MessageServiceTest {
                 .thenReturn(Arrays.asList());
 
         // when
-        messageService.getChannelMessages(1L, 200, null);
+        messageService.getChannelMessages(1L, testUser.getId(), 200, null);
 
         // then
         verify(messageRepository, times(1)).findMessagesByChannelId(
@@ -335,15 +335,15 @@ class MessageServiceTest {
     @DisplayName("Should throw exception when channelId is invalid for getMessageById")
     void getMessageById_InvalidChannelId() {
         // when & then
-        assertThatThrownBy(() -> messageService.getMessageById(null))
+        assertThatThrownBy(() -> messageService.getMessageById(null, testUser.getId()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid message ID");
 
-        assertThatThrownBy(() -> messageService.getMessageById(0L))
+        assertThatThrownBy(() -> messageService.getMessageById(0L, testUser.getId()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid message ID");
 
-        assertThatThrownBy(() -> messageService.getMessageById(-1L))
+        assertThatThrownBy(() -> messageService.getMessageById(-1L, testUser.getId()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid message ID");
 
@@ -354,15 +354,15 @@ class MessageServiceTest {
     @DisplayName("Should throw exception when channelId is invalid for getChannelMessages")
     void getChannelMessages_InvalidChannelId() {
         // when & then
-        assertThatThrownBy(() -> messageService.getChannelMessages(null, 50, null))
+        assertThatThrownBy(() -> messageService.getChannelMessages(null, testUser.getId(), 50, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid channel ID");
 
-        assertThatThrownBy(() -> messageService.getChannelMessages(0L, 50, null))
+        assertThatThrownBy(() -> messageService.getChannelMessages(0L, testUser.getId(), 50, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid channel ID");
 
-        assertThatThrownBy(() -> messageService.getChannelMessages(-1L, 50, null))
+        assertThatThrownBy(() -> messageService.getChannelMessages(-1L, testUser.getId(), 50, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid channel ID");
 
