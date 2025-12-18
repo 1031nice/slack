@@ -12,6 +12,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@org.springframework.context.annotation.Profile("!dev")
 public class SecurityConfig {
 
     private final CorsConfigurationSource corsConfigurationSource;

@@ -399,6 +399,39 @@ export async function acceptInvitation(request: AcceptInvitationRequest, token: 
   }
 }
 
+export async function devLogin(username: string): Promise<LoginResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/dev/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 400) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.message || 'Invalid username.', 400, response.statusText);
+      } else if (response.status >= 500) {
+        throw new ApiError('Server error. Please try again later.', response.status, response.statusText);
+      } else {
+        throw new ApiError(`Dev login failed: ${response.statusText}`, response.status, response.statusText);
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError('Network error. Please check your connection.', 0, 'Network Error');
+    }
+    throw new ApiError('An unexpected error occurred during dev login.');
+  }
+}
+
 export async function fetchUnreads(
   token: string,
   sort?: string,
