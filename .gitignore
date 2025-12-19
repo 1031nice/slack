@@ -43,6 +43,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Process ID files
+*.pid
+
 # Local files (git으로 관리하지 않음)
 local/
 
