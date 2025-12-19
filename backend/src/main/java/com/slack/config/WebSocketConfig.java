@@ -1,6 +1,10 @@
 package com.slack.config;
 
+import com.slack.domain.user.User;
+import com.slack.service.UserService;
+import com.slack.util.DevJwtUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -21,16 +25,24 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Collections;
+
 @Slf4j
 @Configuration
 @EnableWebSocketMessageBroker
 @Order(Ordered.HIGHEST_PRECEDENCE + 99)
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final JwtDecoder jwtDecoder;
+    private final UserService userService;
 
-    public WebSocketConfig(JwtDecoder jwtDecoder) {
-        this.jwtDecoder = jwtDecoder;
+    @Autowired(required = false)
+    private JwtDecoder jwtDecoder;
+
+    @Autowired(required = false)
+    private DevJwtUtil devJwtUtil;
+
+    public WebSocketConfig(UserService userService) {
+        this.userService = userService;
     }
 
     @Override
@@ -64,14 +76,37 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     if (authToken != null && authToken.startsWith("Bearer ")) {
                         try {
                             String token = authToken.substring(7);
-                            Jwt jwt = jwtDecoder.decode(token);
-                            JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-                            Authentication authentication = converter.convert(jwt);
+                            Authentication authentication = null;
 
-                            // ✅ 핵심: setUser()로 Principal 설정
-                            accessor.setUser(authentication);
+                            // Dev 모드: DevJwtUtil 사용
+                            if (devJwtUtil != null && devJwtUtil.validateToken(token)) {
+                                String authUserId = devJwtUtil.extractUsername(token);
 
-                            log.debug("WebSocket authentication successful: {}", authentication.getName());
+                                // Find or create user
+                                User user = userService.findByAuthUserIdOptional(authUserId)
+                                        .orElseGet(() -> {
+                                            String email = authUserId + "@dev.local";
+                                            return userService.createUser(authUserId, email, authUserId);
+                                        });
+
+                                authentication = new UsernamePasswordAuthenticationToken(
+                                        user, null, Collections.emptyList());
+
+                                log.debug("WebSocket dev authentication successful: {}", authUserId);
+                            }
+                            // Production 모드: OAuth2 JwtDecoder 사용
+                            else {
+                                Jwt jwt = jwtDecoder.decode(token);
+                                JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+                                authentication = converter.convert(jwt);
+
+                                log.debug("WebSocket OAuth2 authentication successful: {}", authentication.getName());
+                            }
+
+                            if (authentication != null) {
+                                // ✅ 핵심: setUser()로 Principal 설정
+                                accessor.setUser(authentication);
+                            }
                         } catch (Exception e) {
                             log.error("JWT authentication failed during CONNECT", e);
                             // 인증 실패 시 연결 거부하려면 예외를 throw
