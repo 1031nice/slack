@@ -47,20 +47,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // 메시지 브로커 설정
-        // 클라이언트가 구독할 수 있는 destination prefix
         config.enableSimpleBroker("/topic", "/queue");
-        // 클라이언트가 메시지를 보낼 때 사용할 destination prefix
         config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // WebSocket 엔드포인트 등록
-        // 클라이언트는 이 엔드포인트로 연결
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*") // CORS 설정 (개발용, 프로덕션에서는 특정 도메인 지정)
-                .withSockJS(); // SockJS 지원 (fallback 옵션)
+                .setAllowedOriginPatterns("*") // TODO: Restrict origins in production
+                .withSockJS();
     }
 
     @Override
@@ -71,20 +66,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
                 if (accessor != null) {
-                    // CONNECT 메시지: 초기 인증
                     if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-                    // CONNECT 명령: Authorization 헤더에서 JWT 추출 및 인증 설정
                     String authToken = accessor.getFirstNativeHeader("Authorization");
                     if (authToken != null && authToken.startsWith("Bearer ")) {
                         try {
                             String token = authToken.substring(7);
                             Authentication authentication = null;
 
-                            // Dev 모드: DevJwtUtil 사용
+                            // Dev mode: use DevJwtUtil
                             if (devJwtUtil != null && devJwtUtil.validateToken(token)) {
                                 String authUserId = devJwtUtil.extractUsername(token);
 
-                                // Find or create user
                                 User user = userService.findByAuthUserIdOptional(authUserId)
                                         .orElseGet(() -> {
                                             String email = authUserId + "@dev.local";
@@ -96,7 +88,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                                 log.debug("WebSocket dev authentication successful: {}", authUserId);
                             }
-                            // Production 모드: OAuth2 JwtDecoder 사용
+                            // Production mode: use OAuth2 JwtDecoder
                             else {
                                 Jwt jwt = jwtDecoder.decode(token);
                                 JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -106,25 +98,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             }
 
                             if (authentication != null) {
-                                // ✅ 핵심: setUser()로 Principal 설정
                                 accessor.setUser(authentication);
                             }
                         } catch (Exception e) {
                             log.error("JWT authentication failed during CONNECT", e);
-                            // 인증 실패 시 연결 거부하려면 예외를 throw
-                            // throw new AuthenticationException("Invalid JWT token");
                         }
                     } else {
                         log.warn("No Authorization header in CONNECT message");
                     }
                     }
-                    // SEND, SUBSCRIBE 등 다른 메시지: 세션에서 인증 정보 복원
-                    else if (accessor.getUser() != null) {
-                        // 세션에 저장된 User를 Authentication으로 변환
-                        if (accessor.getUser() instanceof Authentication) {
-                            // 이미 Authentication 객체인 경우 그대로 사용
-                            accessor.setUser(accessor.getUser());
-                        }
+                    else if (accessor.getUser() instanceof Authentication) {
+                        accessor.setUser(accessor.getUser());
                     }
                 }
 
