@@ -4,13 +4,13 @@ import com.slack.domain.user.User;
 import com.slack.dto.message.MessageCreateRequest;
 import com.slack.dto.message.MessageResponse;
 import com.slack.dto.websocket.WebSocketMessage;
+import com.slack.service.auth.AuthenticationExtractor;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -24,6 +24,7 @@ public class WebSocketMessageService {
     private final RedisMessagePublisher redisMessagePublisher;
     private final MessageSequenceService sequenceService;
     private final ReadReceiptService readReceiptService;
+    private final AuthenticationExtractor authenticationExtractor;
 
     /**
      * WebSocket을 통해 받은 메시지를 처리하고 브로드캐스팅합니다.
@@ -36,7 +37,7 @@ public class WebSocketMessageService {
     public WebSocketMessage handleIncomingMessage(WebSocketMessage message, Authentication authentication) {
         log.info("Received message: channelId={}, content={}", message.getChannelId(), message.getContent());
 
-        String authUserId = extractAuthUserId(authentication);
+        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
         if (authUserId == null) {
             throw new IllegalArgumentException("Authentication required");
         }
@@ -170,7 +171,7 @@ public class WebSocketMessageService {
             return;
         }
 
-        String authUserId = extractAuthUserId(authentication);
+        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
         if (authUserId == null) {
             throw new IllegalArgumentException("Authentication required");
         }
@@ -187,26 +188,5 @@ public class WebSocketMessageService {
         );
     }
 
-    private String extractAuthUserId(Authentication authentication) {
-        if (authentication == null) {
-            return null;
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        // Dev 모드: Principal이 User 객체인 경우
-        if (principal instanceof com.slack.domain.user.User) {
-            com.slack.domain.user.User user = (com.slack.domain.user.User) principal;
-            return user.getAuthUserId();
-        }
-
-        // Production 모드: Principal이 JWT인 경우
-        if (principal instanceof Jwt) {
-            Jwt jwt = (Jwt) principal;
-            return jwt.getSubject();
-        }
-
-        return null;
-    }
 }
 

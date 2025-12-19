@@ -320,11 +320,6 @@ export default function Home() {
     router.push('/dev-login');
   }, [router]);
 
-  const handleLogout = useCallback(() => {
-    removeAuthToken();
-    router.push('/dev-login');
-  }, [router]);
-
   // 토큰이 없으면 아무것도 렌더링하지 않음 (리다이렉트 중)
   if (!token) {
     return null;
