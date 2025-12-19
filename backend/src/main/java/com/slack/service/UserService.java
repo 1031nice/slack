@@ -64,5 +64,15 @@ public class UserService {
                 .build();
         return userRepository.save(newUser);
     }
+
+    /**
+     * Finds or creates a dev mode user with @dev.local email.
+     * Used for development authentication without OAuth.
+     */
+    @Transactional
+    public User findOrCreateDevUser(String authUserId) {
+        return findByAuthUserIdOptional(authUserId)
+                .orElseGet(() -> createUser(authUserId, authUserId + "@dev.local", authUserId));
+    }
 }
 

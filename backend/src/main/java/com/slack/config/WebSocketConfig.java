@@ -65,56 +65,58 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-                if (accessor != null) {
-                    if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-                    String authToken = accessor.getFirstNativeHeader("Authorization");
-                    if (authToken != null && authToken.startsWith("Bearer ")) {
-                        try {
-                            String token = authToken.substring(7);
-                            Authentication authentication = null;
-
-                            // Dev mode: use DevJwtUtil
-                            if (devJwtUtil != null && devJwtUtil.validateToken(token)) {
-                                String authUserId = devJwtUtil.extractUsername(token);
-
-                                User user = userService.findByAuthUserIdOptional(authUserId)
-                                        .orElseGet(() -> {
-                                            String email = authUserId + "@dev.local";
-                                            return userService.createUser(authUserId, email, authUserId);
-                                        });
-
-                                authentication = new UsernamePasswordAuthenticationToken(
-                                        user, null, Collections.emptyList());
-
-                                log.debug("WebSocket dev authentication successful: {}", authUserId);
-                            }
-                            // Production mode: use OAuth2 JwtDecoder
-                            else {
-                                Jwt jwt = jwtDecoder.decode(token);
-                                JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-                                authentication = converter.convert(jwt);
-
-                                log.debug("WebSocket OAuth2 authentication successful: {}", authentication.getName());
-                            }
-
-                            if (authentication != null) {
-                                accessor.setUser(authentication);
-                            }
-                        } catch (Exception e) {
-                            log.error("JWT authentication failed during CONNECT", e);
-                        }
-                    } else {
-                        log.warn("No Authorization header in CONNECT message");
-                    }
-                    }
-                    else if (accessor.getUser() instanceof Authentication) {
-                        accessor.setUser(accessor.getUser());
-                    }
+                if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    authenticateConnect(accessor);
                 }
 
                 return message;
             }
         });
+    }
+
+    private void authenticateConnect(StompHeaderAccessor accessor) {
+        String authToken = accessor.getFirstNativeHeader("Authorization");
+        if (authToken == null || !authToken.startsWith("Bearer ")) {
+            log.warn("No Authorization header in CONNECT message");
+            return;
+        }
+
+        try {
+            String token = authToken.substring(7);
+            Authentication authentication = authenticate(token);
+            if (authentication != null) {
+                accessor.setUser(authentication);
+            }
+        } catch (Exception e) {
+            log.error("JWT authentication failed during CONNECT", e);
+        }
+    }
+
+    private Authentication authenticate(String token) {
+        // Dev mode: use DevJwtUtil
+        if (devJwtUtil != null && devJwtUtil.validateToken(token)) {
+            return authenticateDevMode(token);
+        }
+
+        // Production mode: use OAuth2 JwtDecoder
+        return authenticateProductionMode(token);
+    }
+
+    private Authentication authenticateDevMode(String token) {
+        String authUserId = devJwtUtil.extractUsername(token);
+        User user = userService.findOrCreateDevUser(authUserId);
+
+        log.debug("WebSocket dev authentication successful: {}", authUserId);
+        return new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
+    }
+
+    private Authentication authenticateProductionMode(String token) {
+        Jwt jwt = jwtDecoder.decode(token);
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        Authentication authentication = converter.convert(jwt);
+
+        log.debug("WebSocket OAuth2 authentication successful: {}", authentication.getName());
+        return authentication;
     }
 }
 

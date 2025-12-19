@@ -85,16 +85,8 @@ public class DevSecurityConfig {
 
                 if (devJwtUtil.validateToken(token)) {
                     String authUserId = devJwtUtil.extractUsername(token);
+                    User user = userService.findOrCreateDevUser(authUserId);
 
-                    // Find or create user
-                    User user = userService.findByAuthUserIdOptional(authUserId)
-                            .orElseGet(() -> {
-                                // Auto-create user for dev mode
-                                String email = authUserId + "@dev.local";
-                                return userService.createUser(authUserId, email, authUserId);
-                            });
-
-                    // Create authentication with User object as principal
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
 
