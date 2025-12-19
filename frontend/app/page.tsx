@@ -25,6 +25,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
+
+  // Debug: 모달 상태 변경 추적
+  useEffect(() => {
+    console.log('[State Change] isCreateWorkspaceModalOpen:', isCreateWorkspaceModalOpen);
+  }, [isCreateWorkspaceModalOpen]);
   const [isCreateChannelModalOpen, setIsCreateChannelModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<number | null>(null);
@@ -280,12 +285,12 @@ export default function Home() {
   }, []);
 
   const handleCreateWorkspace = useCallback(() => {
-    console.log('Create workspace button clicked');
     if (!token) {
       console.error('Cannot create workspace: no token');
       setError('Please log in to create a workspace.');
       return;
     }
+    console.log('[handleCreateWorkspace] Setting modal open to true');
     setIsCreateWorkspaceModalOpen(true);
   }, [token]);
 
@@ -334,17 +339,27 @@ export default function Home() {
 
   if (!selectedWorkspaceId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">No workspace selected</p>
-          <button
-            onClick={handleCreateWorkspace}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
-          >
-            Create Workspace
-          </button>
+      <>
+        <div className="flex items-center justify-center h-screen bg-gray-50">
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">No workspace selected</p>
+            <button
+              onClick={handleCreateWorkspace}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
+            >
+              Create Workspace
+            </button>
+          </div>
         </div>
-      </div>
+        {token && (
+          <CreateWorkspaceModal
+            isOpen={isCreateWorkspaceModalOpen}
+            onClose={() => setIsCreateWorkspaceModalOpen(false)}
+            onSuccess={handleWorkspaceCreated}
+            token={token}
+          />
+        )}
+      </>
     );
   }
 
@@ -469,6 +484,7 @@ export default function Home() {
       </div>
       {token && (
         <>
+          {console.log('[Render] About to render CreateWorkspaceModal. isOpen:', isCreateWorkspaceModalOpen, 'token:', !!token)}
           <CreateWorkspaceModal
             isOpen={isCreateWorkspaceModalOpen}
             onClose={() => setIsCreateWorkspaceModalOpen(false)}
