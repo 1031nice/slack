@@ -25,11 +25,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
-
-  // Debug: 모달 상태 변경 추적
-  useEffect(() => {
-    console.log('[State Change] isCreateWorkspaceModalOpen:', isCreateWorkspaceModalOpen);
-  }, [isCreateWorkspaceModalOpen]);
   const [isCreateChannelModalOpen, setIsCreateChannelModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState<number | null>(null);
@@ -290,7 +285,6 @@ export default function Home() {
       setError('Please log in to create a workspace.');
       return;
     }
-    console.log('[handleCreateWorkspace] Setting modal open to true');
     setIsCreateWorkspaceModalOpen(true);
   }, [token]);
 
@@ -320,6 +314,16 @@ export default function Home() {
       alert(`Invitation created!\n\nEmail: ${inviteResponse.email}\nLink: ${inviteLink}`);
     });
   }, []);
+
+  const handleLogout = useCallback(() => {
+    removeAuthToken();
+    router.push('/dev-login');
+  }, [router]);
+
+  const handleLogout = useCallback(() => {
+    removeAuthToken();
+    router.push('/dev-login');
+  }, [router]);
 
   // 토큰이 없으면 아무것도 렌더링하지 않음 (리다이렉트 중)
   if (!token) {
@@ -440,6 +444,13 @@ export default function Home() {
                     <span className="text-red-500">● Disconnected</span>
                   )}
                 </div>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                  title="Logout"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </div>
@@ -484,7 +495,6 @@ export default function Home() {
       </div>
       {token && (
         <>
-          {console.log('[Render] About to render CreateWorkspaceModal. isOpen:', isCreateWorkspaceModalOpen, 'token:', !!token)}
           <CreateWorkspaceModal
             isOpen={isCreateWorkspaceModalOpen}
             onClose={() => setIsCreateWorkspaceModalOpen(false)}
