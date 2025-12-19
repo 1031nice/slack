@@ -188,11 +188,25 @@ public class WebSocketMessageService {
     }
 
     private String extractAuthUserId(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt)) {
+        if (authentication == null) {
             return null;
         }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        return jwt.getSubject();
+
+        Object principal = authentication.getPrincipal();
+
+        // Dev 모드: Principal이 User 객체인 경우
+        if (principal instanceof com.slack.domain.user.User) {
+            com.slack.domain.user.User user = (com.slack.domain.user.User) principal;
+            return user.getAuthUserId();
+        }
+
+        // Production 모드: Principal이 JWT인 경우
+        if (principal instanceof Jwt) {
+            Jwt jwt = (Jwt) principal;
+            return jwt.getSubject();
+        }
+
+        return null;
     }
 }
 

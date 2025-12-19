@@ -70,7 +70,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-                if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+                if (accessor != null) {
+                    // CONNECT 메시지: 초기 인증
+                    if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                     // CONNECT 명령: Authorization 헤더에서 JWT 추출 및 인증 설정
                     String authToken = accessor.getFirstNativeHeader("Authorization");
                     if (authToken != null && authToken.startsWith("Bearer ")) {
@@ -114,6 +116,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         }
                     } else {
                         log.warn("No Authorization header in CONNECT message");
+                    }
+                    }
+                    // SEND, SUBSCRIBE 등 다른 메시지: 세션에서 인증 정보 복원
+                    else if (accessor.getUser() != null) {
+                        // 세션에 저장된 User를 Authentication으로 변환
+                        if (accessor.getUser() instanceof Authentication) {
+                            // 이미 Authentication 객체인 경우 그대로 사용
+                            accessor.setUser(accessor.getUser());
+                        }
                     }
                 }
 
