@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { devLogin, ApiError } from '@/lib/api';
-import { saveAuthToken } from '@/lib/auth';
+import { setAuthToken } from '@/lib/auth';
 
 export default function DevLoginPage() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function DevLoginPage() {
 
     try {
       const response = await devLogin(username.trim());
-      saveAuthToken(response.accessToken);
+      setAuthToken(response.accessToken);
       router.push('/');
     } catch (err) {
       console.error('Dev login failed:', err);
