@@ -2,14 +2,18 @@
 
 ## Project Overview
 
-A learning-focused Slack clone project that explores **real-world distributed systems challenges**. The goal is to understand and solve the same architectural problems that real Slack faces: message delivery, ordering guarantees, horizontal scaling, and fault tolerance.
+A learning-focused Slack clone project that explores **real-world distributed systems challenges**. The goal is to
+understand and solve the same architectural problems that real Slack faces: message delivery, ordering guarantees,
+horizontal scaling, and fault tolerance.
 
-**Philosophy**: Learn by building production-quality solutions and understanding trade-offs, not by following simplified tutorials. Every architectural decision is documented with its trade-offs, limitations, and design rationale.
+**Philosophy**: Learn by building production-quality solutions and understanding trade-offs, not by following simplified
+tutorials. Every architectural decision is documented with its trade-offs, limitations, and design rationale.
 
 ## Architecture Principles
 
 - **Learn by Doing**: Implement real solutions, experience real problems, understand real trade-offs
-- **Measured Decisions**: Document why we choose one approach over another (Redis vs Kafka, consistency models, caching strategies)
+- **Measured Decisions**: Document why we choose one approach over another (Redis vs Kafka, consistency models, caching
+  strategies)
 - **Production Mindset**: Design as if this will serve real users, but acknowledge current limitations
 - **Observable**: Metrics, structured logging from day one
 - **Iterative**: Ship working versions, improve incrementally
@@ -27,14 +31,17 @@ A learning-focused Slack clone project that explores **real-world distributed sy
 
 ## Current Status: v0.3 ✅
 
-Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client reconnection. See [v0.3 details](#v03---distributed-messaging--current) below.
+Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client reconnection.
+See [v0.3 details](#v03---distributed-messaging--current) below.
 
 ## Version Roadmap
 
 ### v0.1 - MVP ✅
+
 **Goal**: Single-server baseline + performance measurement
 
 **Implemented**:
+
 - Basic CRUD APIs (User, Workspace, Channel, Message)
 - Single-server WebSocket (STOMP over SockJS)
 - JWT authentication
@@ -42,6 +49,7 @@ Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client r
 - Prometheus metrics collection
 
 **Performance Baseline**:
+
 - Throughput: ~45 msg/sec (5 clients, 2 msg/sec each)
 - Latency: P50=46ms, P95=175ms, P99=252ms
 
@@ -50,9 +58,11 @@ Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client r
 ---
 
 ### v0.2 - Multi-workspace & Access Control ✅
+
 **Goal**: Enterprise-grade permission system
 
 **Implemented**:
+
 - RBAC (Owner, Admin, Member roles)
 - Public/Private channels with access control
 - Workspace invitation flow (token-based)
@@ -66,9 +76,11 @@ Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client r
 ---
 
 ### v0.3 - Distributed Messaging ✅ (Current)
+
 **Goal**: Multi-server architecture with Redis Pub/Sub
 
 **Implemented**:
+
 - Redis Pub/Sub for server-to-server messaging
 - Nginx load balancer with sticky sessions (ip_hash)
 - Message sequence numbers (Redis INCR per channel)
@@ -76,6 +88,7 @@ Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client r
 - ACK message type (handler stubbed for future use)
 
 **Architecture**:
+
 ```
 Client → WebSocket → Server → PostgreSQL (persist first)
                             ↓
@@ -83,71 +96,82 @@ Client → WebSocket → Server → PostgreSQL (persist first)
 ```
 
 **Performance** (3 servers):
+
 - Throughput: 41.76 msg/sec (comparable to single server at low load)
 - Latency: P50=34ms, P95=190ms
 - Redis Pub/Sub overhead: ~1ms (negligible)
 
 **Key Design Decisions**:
+
 - **PostgreSQL + Redis Pub/Sub** (same as real Slack)
 - DB-first persistence for durability, Redis for real-time speed
 - Client recovery via DB query on reconnect (sequence-based)
 - Trade-off: Redis failure → temporary loss of real-time (but no data loss)
 
 **Known Limitations**:
-- All servers receive all messages (single Redis topic) → v0.8 optimization planned
+
+- All servers receive all messages (single Redis topic) → v0.9 optimization planned
 - No idempotency yet (client retries may create duplicates) → v0.5+
 - Single Redis instance (HA in production)
 
 For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, see:
-**[ADR-0001: Redis Pub/Sub vs Kafka for Multi-Server Broadcast](./docs/adr/0001-redis-vs-kafka-for-multi-server-broadcast.md)**
+*
+*[ADR-0001: Redis Pub/Sub vs Kafka for Multi-Server Broadcast](./docs/adr/0001-redis-vs-kafka-for-multi-server-broadcast.md)
+**
 
 **Deliverable**: "Multi-server messaging with Redis Pub/Sub, same architecture as real Slack"
 
 ---
 
 ### v0.4 - Read Status & Notifications (Next)
+
 **Goal**: User engagement features with eventual consistency
 
+**Note**: This version uses the current sequence-based ordering. Event-based migration happens in v0.5.
+
 **Planned**:
+
 1. **Unread Count Tracking**:
-   - Redis Sorted Set per user per channel
-   - Key: `unread:{userId}:{channelId}`
-   - Members: messageIds, Scores: timestamps
-   - O(1) increment on new message, O(1) clear on read
+    - Redis Sorted Set per user per channel
+    - Key: `unread:{userId}:{channelId}`
+    - Members: messageIds, Scores: timestamps
+    - O(1) increment on new message, O(1) clear on read
 
 2. **Mention Detection**:
-   - Parse `@username` in messages
-   - Notification queue (could be Redis List or DB table)
-   - WebSocket notification: `{type: 'MENTION', messageId, channelId}`
+    - Parse `@username` in messages
+    - Notification queue (could be Redis List or DB table)
+    - WebSocket notification: `{type: 'MENTION', messageId, channelId}`
 
 3. **Unreads View**:
-   - Aggregate view of all unread messages across channels
-   - Sorting: newest first, oldest first, by channel
-   - API: `GET /api/unreads?sort=newest&limit=50`
-   - Uses ZSET's `ZREVRANGE` for time-ordered retrieval
+    - Aggregate view of all unread messages across channels
+    - Sorting: newest first, oldest first, by channel
+    - API: `GET /api/unreads?sort=newest&limit=50`
+    - Uses ZSET's `ZREVRANGE` for time-ordered retrieval
 
 4. **Read Receipts**:
-   - Real-time via WebSocket: `{type: 'READ', userId, channelId, lastReadSequence}`
-   - Update Redis instantly, async sync to PostgreSQL
+    - Real-time via WebSocket: `{type: 'READ', userId, channelId, lastReadSequence}`
+    - Update Redis instantly, async sync to PostgreSQL
 
 5. **Eventual Consistency**:
-   - Redis is cache (fast, may be lost)
-   - PostgreSQL is source of truth (slower, durable)
-   - Immediate async write to PostgreSQL (@Async, non-blocking)
-   - Crash recovery: Restore from PostgreSQL
+    - Redis is cache (fast, may be lost)
+    - PostgreSQL is source of truth (slower, durable)
+    - Immediate async write to PostgreSQL (@Async, non-blocking)
+    - Crash recovery: Restore from PostgreSQL
 
 **Trade-off Analysis**:
+
 - **Why Redis**: 10,000+ read status updates/sec, sub-millisecond latency
 - **Why Eventual Consistency**:
-  - Strict consistency requires distributed transaction (2PC) across Redis + PostgreSQL
-  - Cost: 10x latency, complexity, availability risk
-  - Benefit: Acceptable for read status (not critical like message content)
+    - Strict consistency requires distributed transaction (2PC) across Redis + PostgreSQL
+    - Cost: 10x latency, complexity, availability risk
+    - Benefit: Acceptable for read status (not critical like message content)
 - **Sync Strategy**:
-  - Write-through to Redis (fast, real-time)
-  - Immediate async write to PostgreSQL (durable, non-blocking)
-  - Expected lag: <100ms (thread pool + DB write)
+    - Write-through to Redis (fast, real-time)
+    - Immediate async write to PostgreSQL (durable, non-blocking)
+    - Expected lag: <100ms (thread pool + DB write)
 
 **Learning Focus**:
+
 - Eventual consistency trade-offs
 - Redis data structures (Sorted Sets, Lists)
 - Batch write optimizations
@@ -157,22 +181,114 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.5 - Thread Support
+### v0.5 - Event-Based Architecture Migration
+
+**Goal**: Migrate from sequence-based to event-based messaging (Slack's production architecture)
+
+**Motivation**:
+Current sequence-based ordering creates bottlenecks at scale:
+
+- Single point of coordination (Redis INCR)
+- Horizontal scaling limits (all servers coordinate on single counter)
+- Single point of failure (Redis down = no messages)
+- Global distribution challenges (multi-region coordination)
+
+Real Slack solved this by moving to event-based architecture with distributed ID generation.
+
+**Implementation (3-phase migration)**:
+
+**Phase 1: Snowflake ID Generation**
+
+- Introduce `event_id` alongside `sequence_number` (dual system)
+- Twitter Snowflake format: 64-bit IDs with timestamp + server ID + sequence
+- Example: `Ev01H2K3M4N5P6` (no coordination, generated locally)
+- PostgreSQL: Add `event_id` column (migration without downtime)
+
+**Phase 2: Client-Side Ordering with Time Buffer**
+
+- Client sorts messages by timestamp (not sequence)
+- 2-second buffer for late-arriving messages
+- Deduplication: Track `Set<event_id>` per channel
+- Trade-off: 2s display latency for correct ordering
+
+**Phase 3: Remove Sequence Numbers**
+
+- Replace sequence-based reconnection with timestamp-based
+- Heartbeat-based gap detection (10s intervals)
+- Remove `MessageSequenceService` and Redis INCR dependency
+- Client requests messages since last timestamp on reconnect
+
+**Key Changes**:
+
+```typescript
+// Before: Track single number
+lastSequenceNumber: number = 0
+
+// After: Track set of seen events
+seenEvents: Set<string> = new Set()
+
+// Before: Gap detection
+if (msg.sequenceNumber !== lastSequenceNumber + 1) {
+  requestMissingMessages(lastSequenceNumber + 1, msg.sequenceNumber - 1)
+}
+
+// After: Deduplication + time-based ordering
+if (!seenEvents.has(msg.event_id)) {
+  seenEvents.add(msg.event_id)
+  buffer.add(msg)
+  sortByTimestamp()
+}
+```
+
+**Benefits**:
+
+- ✅ Eliminates Redis INCR bottleneck
+- ✅ Supports horizontal scaling (no coordination)
+- ✅ Multi-region ready (each DC generates IDs independently)
+- ✅ Real Slack architecture (production-grade patterns)
+
+**Costs**:
+
+- ❌ Client complexity (Set tracking vs single number)
+- ❌ 2-second display buffer (trade-off for correct ordering)
+- ❌ Gap detection harder (heartbeat-based, not sequential)
+
+**Learning Focus**:
+
+- Distributed ID generation (Snowflake algorithm)
+- At-least-once delivery with idempotency
+- Client-side deduplication patterns
+- Trade-offs: simplicity vs scalability
+
+**Documentation**: See *
+*[ADR-0002: Event-Based Architecture](./docs/adr/0006-event-based-architecture-for-distributed-messaging.md)** for full
+rationale and alternatives considered.
+
+**Deliverable**: "Event-based messaging with distributed ID generation, zero Redis coordination"
+
+---
+
+### v0.6 - Thread Support
+
 **Goal**: Nested conversations with query optimization
 
+**Note**: Threads will use `event_id` from day one (clean implementation post-migration).
+
 **Planned**:
+
 - Self-referencing Message entity: `@ManyToOne parentMessage`
 - Thread depth limit (Slack uses 1-level: no nested threads)
 - N+1 query prevention:
-  - `@EntityGraph(attributePaths = {"parentMessage", "user"})`
-  - Batch fetch size tuning
+    - `@EntityGraph(attributePaths = {"parentMessage", "user"})`
+    - Batch fetch size tuning
 - Hot thread caching (Redis):
-  - Cache threads with >10 replies in last hour
-  - Invalidation on new reply
+    - Cache threads with >10 replies in last hour
+    - Invalidation on new reply
 - Pagination for long threads (cursor-based, not offset)
-- **Idempotency**: Client-generated message IDs to prevent duplicate threads
+- **Idempotency**: Use `event_id` for deduplication (no duplicate threads)
 
 **Learning Focus**:
+
 - N+1 query problem and solutions
 - `@EntityGraph` and batch fetch optimization
 - Hot data caching strategies
@@ -182,10 +298,12 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.6 - File Uploads
+### v0.7 - File Uploads
+
 **Goal**: Share images, documents in channels
 
 **Planned**:
+
 - S3-compatible storage (MinIO for local dev)
 - Presigned URL upload (client → S3 direct)
 - File metadata in PostgreSQL
@@ -194,6 +312,7 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 - CDN for static assets
 
 **Learning Focus**:
+
 - Object storage patterns
 - Presigned URLs for security
 - Async processing (scanning, thumbnails)
@@ -202,20 +321,24 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.7 - Full-Text Search
+### v0.8 - Full-Text Search
+
 **Goal**: Message discoverability at scale
 
 **Phase 1: PostgreSQL Full-Text Search**:
+
 - `tsvector` column with GIN index
 - Learning: When is PostgreSQL FTS good enough? (Answer: <1M messages)
 
 **Phase 2: Elasticsearch Migration**:
+
 - Real-time indexing pipeline (Logstash or custom)
 - Search across channels, workspaces
 - Highlighting, fuzzy matching, faceted filters
 - Performance comparison: PostgreSQL vs Elasticsearch at 10M messages
 
 **Learning Focus**:
+
 - When to introduce search infrastructure (cost vs benefit)
 - Data consistency between PostgreSQL and Elasticsearch
 - Index optimization (sharding, replicas)
@@ -224,14 +347,15 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.8 - Performance Optimization
+### v0.9 - Performance Optimization
+
 **Goal**: Optimize Redis broadcasting and reduce unnecessary traffic
 
 **Planned**:
 
 1. **Channel-Specific Redis Topics**:
-   - Current: Single topic `slack:websocket:messages` → all servers receive all messages
-   - New: Per-channel topics `slack:channel:{channelId}` → servers subscribe only to active channels
+    - Current: Single topic `slack:websocket:messages` → all servers receive all messages
+    - New: Per-channel topics `slack:channel:{channelId}` → servers subscribe only to active channels
    ```java
    // Dynamic subscription management
    @WebSocketEventListener
@@ -245,18 +369,19 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
    ```
 
 2. **Subscription Tracking**:
-   - Track which channels have active subscribers per server
-   - Subscribe to Redis topic when first client subscribes to channel
-   - Unsubscribe when last client leaves channel
-   - Redis Set: `server:{serverId}:active-channels` → {channelId1, channelId2, ...}
+    - Track which channels have active subscribers per server
+    - Subscribe to Redis topic when first client subscribes to channel
+    - Unsubscribe when last client leaves channel
+    - Redis Set: `server:{serverId}:active-channels` → {channelId1, channelId2, ...}
 
 3. **Alternative: Consistent Hashing** (Advanced):
-   - Assign each channel to specific server (like Slack's Channel Server)
-   - Route messages through designated server
-   - Requires sticky sessions by channel (not just by user)
-   - More complex but eliminates broadcast entirely
+    - Assign each channel to specific server (like Slack's Channel Server)
+    - Route messages through designated server
+    - Requires sticky sessions by channel (not just by user)
+    - More complex but eliminates broadcast entirely
 
 **Performance Goals**:
+
 - Reduce network traffic by 80%+ (only receive relevant messages)
 - Measure: messages received vs messages delivered ratio
 
@@ -268,6 +393,7 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 | **Consistent Hashing** | No broadcast needed, like real Slack | Complex, requires channel-aware routing |
 
 **Learning Focus**:
+
 - Dynamic Redis subscription management
 - Trade-offs: simplicity vs efficiency
 - Measuring and optimizing network traffic
@@ -278,9 +404,11 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 ---
 
 ### v1.0 - Production Hardening
+
 **Goal**: Run this in production (if we wanted to)
 
 **Reliability**:
+
 - [ ] Chaos testing (kill random servers, partition network)
 - [ ] Circuit breakers on all external calls (Redis, PostgreSQL)
 - [ ] Rate limiting per user (token bucket algorithm)
@@ -289,23 +417,27 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 - [ ] Automated failover testing
 
 **Observability**:
+
 - [ ] Distributed tracing (OpenTelemetry)
 - [ ] Structured logging (JSON) with trace IDs
 - [ ] Grafana dashboards (RED metrics: Rate, Errors, Duration)
 - [ ] Alerts for SLO violations (P95 latency > 500ms)
 
 **Security**:
+
 - [ ] SQL injection prevention audit
 - [ ] XSS protection (CSP headers)
 - [ ] Rate limiting on auth endpoints (prevent brute force)
 - [ ] Secrets management (Vault, not environment variables)
 
 **Performance**:
+
 - [ ] Load test: 10,000 concurrent WebSocket connections
 - [ ] Database query audit and optimization
 - [ ] Connection pool tuning (HikariCP)
 
 **Documentation**:
+
 - [ ] Runbook for common incidents (Redis down, DB failover)
 - [ ] Architecture decision records (ADRs)
 - [ ] API versioning strategy
@@ -318,14 +450,17 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 ## Getting Started
 
 ### Prerequisites
+
 - Java 21+
 - Node.js 18+
 - Docker & Docker Compose
-- **Multi-Server only**: [auth-platform](https://github.com/1031nice/auth-platform) OAuth2 server (clone to `../auth-platform` directory)
+- **Multi-Server only**: [auth-platform](https://github.com/1031nice/auth-platform) OAuth2 server (clone
+  to `../auth-platform` directory)
 
 ### Quick Start
 
 **Single Server (v0.1, v0.2)**:
+
 ```bash
 # Start infrastructure (PostgreSQL, Redis)
 docker-compose up -d
@@ -338,6 +473,7 @@ cd frontend && npm install && npm run dev
 ```
 
 **Multi-Server (v0.3)**:
+
 ```bash
 # Requires: Clone [auth-platform](https://github.com/1031nice/auth-platform) to ../auth-platform
 # Starts: Auth Platform + 3 backend servers + Nginx + infrastructure
@@ -348,6 +484,7 @@ cd frontend && npm install && npm run dev
 ```
 
 **Access**:
+
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:9000 (single) or http://localhost:8888 (multi-server via Nginx)
 - Swagger UI: http://localhost:9000/swagger-ui.html
@@ -403,26 +540,31 @@ slack/
 ## Core Learning Goals
 
 ### 1. Real-Time Messaging at Scale
+
 - **v0.3**: WebSocket fan-out to multiple servers (how to broadcast?)
 - **v0.4**: Read status at scale (consistency models)
 - **Trade-off**: WebSocket vs Server-Sent Events vs Long Polling
 
 ### 2. Distributed Systems Challenges
+
 - **CAP Theorem**: Where do we choose CP vs AP? (Message writes: CP, Read status: AP)
 - **Ordering**: How to order messages across servers? (Sequence numbers per channel)
 - **Failure Modes**: Network partition, Redis failure, client disconnect
 
 ### 3. Data Consistency Models
+
 - **Strong Consistency**: Message writes (PostgreSQL ACID)
 - **Eventual Consistency**: Read status (Redis → PostgreSQL sync)
 - **Hybrid**: Pub/Sub (ephemeral) + DB recovery (durable)
 
 ### 4. Performance Engineering
+
 - **Benchmarking**: Establish baselines, measure improvements
 - **Profiling**: JVM heap analysis, query slow logs
 - **Optimization**: When to cache? When to denormalize? Measured decisions.
 
 ### 5. Observability
+
 - **Metrics**: RED (Rate, Errors, Duration), USE (Utilization, Saturation, Errors)
 - **Logging**: Structured logs for debugging production issues
 - **Monitoring**: Prometheus + Grafana
@@ -431,7 +573,8 @@ slack/
 
 ## Troubleshooting
 
-Common issues and solutions are documented in [Lessons Learned](#lessons-learned) below. For detailed bug investigation, use the [troubleshooting issue template](.github/ISSUE_TEMPLATE/troubleshooting.md).
+Common issues and solutions are documented in [Lessons Learned](#lessons-learned) below. For detailed bug investigation,
+use the [troubleshooting issue template](.github/ISSUE_TEMPLATE/troubleshooting.md).
 
 ## Lessons Learned
 
@@ -439,9 +582,11 @@ Common issues and solutions are documented in [Lessons Learned](#lessons-learned
 
 **Key Insight**: Separate concerns - PostgreSQL for durability, Redis Pub/Sub for real-time speed.
 
-Real Slack uses the same architecture. Message durability comes from DB-first persistence, not from the pub/sub mechanism. Redis Pub/Sub is chosen for speed (~1ms), not durability.
+Real Slack uses the same architecture. Message durability comes from DB-first persistence, not from the pub/sub
+mechanism. Redis Pub/Sub is chosen for speed (~1ms), not durability.
 
-For full analysis and trade-offs, see **[ADR-0001: Redis Pub/Sub vs Kafka](./docs/adr/0001-redis-vs-kafka-for-multi-server-broadcast.md)**
+For full analysis and trade-offs, see *
+*[ADR-0001: Redis Pub/Sub vs Kafka](./docs/adr/0001-redis-vs-kafka-for-multi-server-broadcast.md)**
 
 ### v0.3 - JWT Token Issue
 
@@ -451,7 +596,8 @@ For full analysis and trade-offs, see **[ADR-0001: Redis Pub/Sub vs Kafka](./doc
 
 **Solution**: Auto-regenerate test tokens before each performance test run (`scripts/generate-test-token.sh`)
 
-**Key Insight**: Development environments with ephemeral keys need token regeneration in CI/CD. Production would use persistent keys (Vault, KMS).
+**Key Insight**: Development environments with ephemeral keys need token regeneration in CI/CD. Production would use
+persistent keys (Vault, KMS).
 
 ---
 
@@ -468,6 +614,7 @@ For full analysis and trade-offs, see **[ADR-0001: Redis Pub/Sub vs Kafka](./doc
 ## Contributing
 
 This is a personal learning project, but feedback welcome:
+
 - Open issues for architectural discussions
 - PRs for bug fixes accepted
 - No feature requests (following planned roadmap)
@@ -477,12 +624,14 @@ This is a personal learning project, but feedback welcome:
 ## References
 
 **Inspired By**:
+
 - [Slack Engineering Blog](https://slack.engineering/)
 - [Real-time Messaging | Engineering at Slack](https://slack.engineering/real-time-messaging/)
 - [Discord Engineering: How Discord Stores Billions of Messages](https://discord.com/blog/how-discord-stores-billions-of-messages)
 - Martin Kleppmann - *Designing Data-Intensive Applications*
 
 **Key Architectural Patterns**:
+
 - Pub/Sub Pattern (Redis)
 - Database as Source of Truth (PostgreSQL)
 - Eventual Consistency (Read status)
