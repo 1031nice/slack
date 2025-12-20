@@ -115,8 +115,29 @@ current sequence-based system.
 
 **Introduce event IDs without removing sequence numbers** (dual system):
 
-```java
+#### Deployment Architecture: Embedded Service (NOT Separate Microservice)
 
+**IMPORTANT**: `SnowflakeIdGenerator` is implemented as an **embedded Spring `@Service`** within each backend application server, **NOT** as a separate microservice.
+
+**Why embedded, not separate service?**
+
+| Aspect | Separate Service (❌ Don't do this) | Embedded Library (✅ Do this) |
+|--------|-----------------------------------|------------------------------|
+| **Network call** | Every ID needs HTTP/RPC call | Zero network calls (local generation) |
+| **Latency** | 1-5ms (network overhead) | ~0.01ms (in-memory) |
+| **Single point of failure** | Service down = no messages | Each server generates independently |
+| **Bottleneck** | All servers call one service | No coordination, horizontal scaling |
+| **Operational complexity** | Another service to deploy/monitor | Just a Spring bean |
+
+**This is different from auth-platform**:
+- Auth-platform **must** be centralized (shared user credentials, tokens)
+- Snowflake ID generator **must** be distributed (eliminate coordination)
+
+Real Slack, Discord, Instagram all generate IDs **locally within each app server**.
+
+#### Implementation
+
+```java
 @Service
 public class SnowflakeIdGenerator {
     // Twitter Snowflake format: 64 bits
@@ -125,16 +146,35 @@ public class SnowflakeIdGenerator {
     // 10 bits: server ID (supports 1024 servers)
     // 12 bits: sequence per millisecond (4096 IDs/ms)
 
+    private final long workerId;
+
+    public SnowflakeIdGenerator(@Value("${slack.server-id:0}") long workerId) {
+        this.workerId = workerId; // From application.yml
+    }
+
     public String generateEventId() {
         long timestamp = System.currentTimeMillis() - CUSTOM_EPOCH;
-        long serverId = SERVER_ID;
-        long sequence = getSequenceForCurrentMs();
+        long sequence = getSequenceForCurrentMs(); // Local counter
 
-        long id = (timestamp << 22) | (serverId << 12) | sequence;
+        // Generated LOCALLY, no network call
+        long id = (timestamp << 22) | (workerId << 12) | sequence;
         return "Ev" + Long.toHexString(id).toUpperCase();
     }
 }
 ```
+
+**Worker ID assignment** (simple approach for v0.5):
+```yaml
+# application-server1.yml
+slack:
+  server-id: 1
+
+# application-server2.yml
+slack:
+  server-id: 2
+```
+
+For production (v1.0): Use database registry or IP-based assignment.
 
 **Migration strategy**:
 
