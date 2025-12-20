@@ -16,6 +16,7 @@ import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.repository.WorkspaceInvitationRepository;
 import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
+import com.slack.service.notification.InvitationNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,33 +35,31 @@ public class WorkspaceInvitationService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserService userService;
     private final PermissionService permissionService;
+    private final InvitationNotifier invitationNotifier;
 
     /**
-     * 워크스페이스에 사용자를 초대합니다.
-     *
-     * @param workspaceId 워크스페이스 ID
-     * @param inviterId 초대하는 사용자의 ID
-     * @param request 초대 요청 (이메일)
-     * @return 생성된 초대 정보
+     * Invites a user to a workspace.
+     * Only workspace admins can invite users.
      */
     @Transactional
     public WorkspaceInviteResponse inviteUser(Long workspaceId, Long inviterId, WorkspaceInviteRequest request) {
-        // Authorization: must be workspace admin
         permissionService.requireWorkspaceAdmin(inviterId, workspaceId);
 
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new WorkspaceNotFoundException("Workspace not found with id: " + workspaceId));
 
         User inviter = userService.findById(inviterId);
-        
-        // 이미 PENDING 상태의 초대가 있는지 확인
+
         if (invitationRepository.existsByWorkspaceIdAndEmailAndStatus(workspaceId, request.getEmail(), InvitationStatus.PENDING)) {
             throw new IllegalArgumentException("An invitation already exists for this email in this workspace");
         }
-        
-        // TODO: 이메일로 사용자를 찾아서 이미 멤버인지 확인하는 로직 추가 필요
-        // 현재는 초대 생성 시점에 중복 체크를 하지 않음 (수락 시점에 체크)
-        
+
+        userService.findByEmail(request.getEmail()).ifPresent(existingUser -> {
+            if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, existingUser.getId())) {
+                throw new IllegalArgumentException("User is already a member of this workspace");
+            }
+        });
+
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(INVITATION_EXPIRY_DAYS);
         
         WorkspaceInvitation invitation = WorkspaceInvitation.builder()
@@ -71,15 +70,13 @@ public class WorkspaceInvitationService {
                 .build();
         
         WorkspaceInvitation saved = invitationRepository.save(invitation);
+        invitationNotifier.sendInvitation(saved);
         return toResponse(saved);
     }
 
     /**
-     * 초대를 수락합니다.
-     * 
-     * @param authUserId 초대를 수락하는 사용자의 authUserId
-     * @param request 초대 수락 요청 (토큰)
-     * @return 수락된 워크스페이스 정보
+     * Accepts a workspace invitation.
+     * Creates a new user if they don't exist yet.
      */
     @Transactional
     public Long acceptInvitation(String authUserId, AcceptInvitationRequest request) {
@@ -95,25 +92,18 @@ public class WorkspaceInvitationService {
             invitationRepository.save(invitation);
             throw new InvitationExpiredException("Invitation has expired");
         }
-        
-        // 사용자 찾기 또는 생성
+
         User user = userService.findByAuthUserIdOptional(authUserId)
-                .orElseGet(() -> {
-                    // 사용자가 없으면 생성 (이메일로 생성)
-                    return userService.createUser(authUserId, invitation.getEmail(), 
-                            invitation.getEmail().split("@")[0]);
-                });
-        
-        // 이미 워크스페이스 멤버인지 확인
+                .orElseGet(() -> userService.createUser(authUserId, invitation.getEmail(),
+                        invitation.getEmail().split("@")[0]));
+
         if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(invitation.getWorkspace().getId(), user.getId())) {
             throw new IllegalArgumentException("User is already a member of this workspace");
         }
-        
-        // 초대 수락 처리
+
         invitation.accept();
         invitationRepository.save(invitation);
-        
-        // WorkspaceMember 생성
+
         WorkspaceMember member = WorkspaceMember.builder()
                 .workspace(invitation.getWorkspace())
                 .user(user)

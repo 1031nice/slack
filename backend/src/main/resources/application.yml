@@ -1,7 +1,9 @@
 spring:
   application:
     name: slack
-  
+  profiles:
+    active: dev
+
   datasource:
     url: jdbc:postgresql://localhost:5432/slack_db
     username: slack_user

@@ -14,6 +14,7 @@ import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.repository.WorkspaceInvitationRepository;
 import com.slack.repository.WorkspaceMemberRepository;
 import com.slack.repository.WorkspaceRepository;
+import com.slack.service.notification.InvitationNotifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class WorkspaceInvitationServiceTest {
 
     @Mock
     private PermissionService permissionService;
+
+    @Mock
+    private InvitationNotifier invitationNotifier;
 
     @InjectMocks
     private WorkspaceInvitationService invitationService;
@@ -102,7 +106,9 @@ class WorkspaceInvitationServiceTest {
         when(userService.findById(inviter.getId())).thenReturn(inviter);
         when(invitationRepository.existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING))
                 .thenReturn(false);
+        when(userService.findByEmail("invitee@example.com")).thenReturn(Optional.empty());
         doNothing().when(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
+        doNothing().when(invitationNotifier).sendInvitation(any(WorkspaceInvitation.class));
         when(invitationRepository.save(any(WorkspaceInvitation.class))).thenAnswer(invocation -> {
             WorkspaceInvitation invitation = invocation.getArgument(0);
             try {
@@ -128,7 +134,9 @@ class WorkspaceInvitationServiceTest {
         verify(userService).findById(inviter.getId());
         verify(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
         verify(invitationRepository).existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING);
+        verify(userService).findByEmail("invitee@example.com");
         verify(invitationRepository).save(any(WorkspaceInvitation.class));
+        verify(invitationNotifier).sendInvitation(any(WorkspaceInvitation.class));
     }
 
     @Test
@@ -162,6 +170,29 @@ class WorkspaceInvitationServiceTest {
                 .hasMessageContaining("An invitation already exists");
 
         verify(invitationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이미 워크스페이스 멤버인 사용자는 초대할 수 없음")
+    void inviteUser_UserAlreadyMember() {
+        // given
+        when(workspaceRepository.findById(1L)).thenReturn(Optional.of(workspace));
+        when(userService.findById(inviter.getId())).thenReturn(inviter);
+        when(invitationRepository.existsByWorkspaceIdAndEmailAndStatus(1L, "invitee@example.com", InvitationStatus.PENDING))
+                .thenReturn(false);
+        when(userService.findByEmail("invitee@example.com")).thenReturn(Optional.of(invitee));
+        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, invitee.getId())).thenReturn(true);
+        doNothing().when(permissionService).requireWorkspaceAdmin(inviter.getId(), 1L);
+
+        // when & then
+        assertThatThrownBy(() -> invitationService.inviteUser(1L, inviter.getId(), inviteRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("already a member");
+
+        verify(userService).findByEmail("invitee@example.com");
+        verify(workspaceMemberRepository).existsByWorkspaceIdAndUserId(1L, invitee.getId());
+        verify(invitationRepository, never()).save(any());
+        verify(invitationNotifier, never()).sendInvitation(any());
     }
 
     @Test

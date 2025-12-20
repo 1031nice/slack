@@ -53,6 +53,13 @@ public class UserService {
     }
 
     /**
+     * Finds user by email, returns Optional.
+     */
+    public Optional<User> findByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
+    /**
      * Creates a new user.
      */
     @Transactional
