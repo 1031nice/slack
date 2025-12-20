@@ -4,6 +4,7 @@ import com.slack.domain.user.User;
 import com.slack.dto.message.MessageCreateRequest;
 import com.slack.dto.message.MessageResponse;
 import com.slack.dto.websocket.WebSocketMessage;
+import com.slack.service.auth.AuthenticationExtractor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,13 @@ class WebSocketMessageServiceTest {
 
     @Mock
     private MessageSequenceService sequenceService;
-    
+
+    @Mock
+    private ReadReceiptService readReceiptService;
+
+    @Mock
+    private AuthenticationExtractor authenticationExtractor;
+
     @Mock
     private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
 
@@ -98,8 +105,7 @@ class WebSocketMessageServiceTest {
     @DisplayName("메시지를 받아서 처리하고 브로드캐스팅한다")
     void handleIncomingMessage_Success() {
         // given
-        when(authentication.getPrincipal()).thenReturn(jwt);
-        when(jwt.getSubject()).thenReturn("auth-123");
+        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-123");
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenReturn(testMessageResponse);
@@ -142,7 +148,7 @@ class WebSocketMessageServiceTest {
     @DisplayName("인증 정보가 없으면 예외가 발생한다")
     void handleIncomingMessage_NoAuthentication() {
         // given
-        when(authentication.getPrincipal()).thenReturn(null);
+        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn(null);
 
         // when & then
         assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
@@ -158,7 +164,7 @@ class WebSocketMessageServiceTest {
     @DisplayName("JWT가 아닌 Principal이면 예외가 발생한다")
     void handleIncomingMessage_InvalidPrincipal() {
         // given
-        when(authentication.getPrincipal()).thenReturn("invalid-principal");
+        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn(null);
 
         // when & then
         assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
@@ -174,8 +180,7 @@ class WebSocketMessageServiceTest {
     @DisplayName("User를 찾지 못하면 예외가 발생한다")
     void handleIncomingMessage_UserNotFound() {
         // given
-        when(authentication.getPrincipal()).thenReturn(jwt);
-        when(jwt.getSubject()).thenReturn("auth-999");
+        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-999");
         when(userService.findByAuthUserId("auth-999"))
                 .thenThrow(new RuntimeException("User not found"));
 
@@ -192,8 +197,7 @@ class WebSocketMessageServiceTest {
     @DisplayName("메시지 생성 실패 시 예외가 발생한다")
     void handleIncomingMessage_MessageCreationFails() {
         // given
-        when(authentication.getPrincipal()).thenReturn(jwt);
-        when(jwt.getSubject()).thenReturn("auth-123");
+        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-123");
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenThrow(new RuntimeException("Database error"));
@@ -259,7 +263,7 @@ class WebSocketMessageServiceTest {
                 .build();
 
         // when
-        webSocketMessageService.broadcastToChannel(1L, message);
+        webSocketMessageService.broadcastToChannel(message);
 
         // then
         // Redis로 메시지 발행 확인 (RedisMessageSubscriber가 로컬 클라이언트에게 전달)

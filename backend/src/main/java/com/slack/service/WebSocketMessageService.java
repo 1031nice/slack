@@ -27,21 +27,12 @@ public class WebSocketMessageService {
     private final AuthenticationExtractor authenticationExtractor;
 
     /**
-     * WebSocket을 통해 받은 메시지를 처리하고 브로드캐스팅합니다.
-     * 
-     * @param message WebSocket 메시지
-     * @param authentication 인증 정보 (JWT에서 추출)
-     * @return 처리된 WebSocket 메시지
-     * @throws IllegalArgumentException 인증 정보가 없거나 유효하지 않은 경우
+     * Processes incoming WebSocket message and broadcasts to channel.
      */
     public WebSocketMessage handleIncomingMessage(WebSocketMessage message, Authentication authentication) {
         log.info("Received message: channelId={}, content={}", message.getChannelId(), message.getContent());
 
-        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
-        if (authUserId == null) {
-            throw new IllegalArgumentException("Authentication required");
-        }
-
+        String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
         Long sequenceNumber = sequenceService.getNextSequenceNumber(message.getChannelId());
 
@@ -52,18 +43,8 @@ public class WebSocketMessageService {
                 .build();
 
         MessageResponse savedMessage = messageService.createMessage(message.getChannelId(), createRequest);
-
-        WebSocketMessage response = WebSocketMessage.builder()
-                .type(WebSocketMessage.MessageType.MESSAGE)
-                .channelId(savedMessage.getChannelId())
-                .messageId(savedMessage.getId())
-                .userId(savedMessage.getUserId())
-                .content(savedMessage.getContent())
-                .createdAt(savedMessage.getCreatedAt().toString())
-                .sequenceNumber(savedMessage.getSequenceNumber())
-                .build();
-
-        broadcastToChannel(message.getChannelId(), response);
+        WebSocketMessage response = toWebSocketMessage(savedMessage);
+        broadcastToChannel(response);
 
         log.info("Broadcasted message to channel {}: messageId={}", message.getChannelId(), savedMessage.getId());
 
@@ -71,10 +52,7 @@ public class WebSocketMessageService {
     }
 
     /**
-     * 에러 메시지를 특정 사용자에게 전송합니다.
-     * 
-     * @param authentication 인증 정보
-     * @param errorMessage 에러 메시지
+     * Sends error message to user.
      */
     public void sendErrorMessage(Authentication authentication, String errorMessage) {
         WebSocketMessage error = WebSocketMessage.builder()
@@ -82,50 +60,33 @@ public class WebSocketMessageService {
                 .content("Failed to send message: " + errorMessage)
                 .build();
 
-        String userDestination = authentication != null
-                ? "/queue/errors." + authentication.getName()
-                : "/queue/errors";
+        String userDestination = getUserDestination(authentication, "errors");
         messagingTemplate.convertAndSend(userDestination, error);
     }
 
     /**
-     * 메시지를 특정 채널의 모든 구독자에게 브로드캐스팅합니다.
-     * Redis Pub/Sub을 통해 모든 서버(로컬 포함)에 메시지를 전달합니다.
-     * 
-     * @param channelId 채널 ID
-     * @param message 브로드캐스팅할 메시지
+     * Broadcasts message to all channel subscribers via Redis Pub/Sub.
      */
-    public void broadcastToChannel(Long channelId, WebSocketMessage message) {
+    public void broadcastToChannel(WebSocketMessage message) {
         redisMessagePublisher.publish(message);
     }
 
     /**
-     * ACK 메시지를 처리합니다.
-     * 클라이언트가 메시지를 수신했음을 확인합니다.
-     * 
-     * @param message ACK 메시지
-     * @param authentication 인증 정보
+     * Handles ACK message from client confirming message receipt.
      */
     public void handleAck(WebSocketMessage message, Authentication authentication) {
-        if (message.getType() != WebSocketMessage.MessageType.ACK) {
-            log.warn("Received non-ACK message in handleAck: type={}", message.getType());
+        if (!validateMessageType(message, WebSocketMessage.MessageType.ACK, "handleAck")) {
             return;
         }
 
-        log.debug("Received ACK: ackId={}, sequenceNumber={}", 
+        log.debug("Received ACK: ackId={}, sequenceNumber={}",
                 message.getAckId(), message.getSequenceNumber());
-        
-        // TODO: v0.3 후속 작업에서 ACK 기반 재전송 로직 구현
-        // 현재는 ACK를 받았다는 것만 로깅
+
+        // TODO: Implement ACK-based retransmission logic in v0.3
     }
 
     /**
-     * 재연결 시 누락된 메시지를 조회하여 재전송합니다.
-     * 클라이언트가 마지막 수신한 시퀀스 번호 이후의 메시지를 요청합니다.
-     * 
-     * @param channelId 채널 ID
-     * @param lastSequenceNumber 클라이언트가 마지막으로 수신한 시퀀스 번호
-     * @param authentication 인증 정보
+     * Resends messages missed since last sequence number on reconnection.
      */
     public void resendMissedMessages(Long channelId, Long lastSequenceNumber, Authentication authentication) {
         log.info("Resending missed messages for channel {} after sequence {}", channelId, lastSequenceNumber);
@@ -138,44 +99,24 @@ public class WebSocketMessageService {
         }
         
         log.info("Found {} missed messages for channel {}", missedMessages.size(), channelId);
-        
-        String userDestination = authentication != null
-                ? "/queue/resend." + authentication.getName()
-                : "/queue/resend";
-        
+
+        String userDestination = getUserDestination(authentication, "resend");
+
         for (MessageResponse msg : missedMessages) {
-            WebSocketMessage webSocketMessage = WebSocketMessage.builder()
-                    .type(WebSocketMessage.MessageType.MESSAGE)
-                    .channelId(msg.getChannelId())
-                    .messageId(msg.getId())
-                    .userId(msg.getUserId())
-                    .content(msg.getContent())
-                    .createdAt(msg.getCreatedAt().toString())
-                    .sequenceNumber(msg.getSequenceNumber())
-                    .build();
-            
+            WebSocketMessage webSocketMessage = toWebSocketMessage(msg);
             messagingTemplate.convertAndSend(userDestination, webSocketMessage);
         }
     }
 
     /**
-     * READ 메시지를 처리합니다.
-     * 클라이언트가 특정 채널의 메시지를 읽었음을 처리합니다.
-     * 
-     * @param message READ 메시지 (channelId, sequenceNumber 포함)
-     * @param authentication 인증 정보
+     * Handles READ message to update user's read receipt for channel.
      */
     public void handleRead(WebSocketMessage message, Authentication authentication) {
-        if (message.getType() != WebSocketMessage.MessageType.READ) {
-            log.warn("Received non-READ message in handleRead: type={}", message.getType());
+        if (!validateMessageType(message, WebSocketMessage.MessageType.READ, "handleRead")) {
             return;
         }
 
-        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
-        if (authUserId == null) {
-            throw new IllegalArgumentException("Authentication required");
-        }
-
+        String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
 
         log.debug("Processing read receipt: userId={}, channelId={}, sequenceNumber={}", 
@@ -186,6 +127,43 @@ public class WebSocketMessageService {
                 message.getChannelId(),
                 message.getSequenceNumber()
         );
+    }
+
+    private String extractAndValidateAuthUserId(Authentication authentication) {
+        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
+        if (authUserId == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+        return authUserId;
+    }
+
+    private WebSocketMessage toWebSocketMessage(MessageResponse message) {
+        return WebSocketMessage.builder()
+                .type(WebSocketMessage.MessageType.MESSAGE)
+                .channelId(message.getChannelId())
+                .messageId(message.getId())
+                .userId(message.getUserId())
+                .content(message.getContent())
+                .createdAt(message.getCreatedAt().toString())
+                .sequenceNumber(message.getSequenceNumber())
+                .build();
+    }
+
+    private String getUserDestination(Authentication authentication, String queueType) {
+        return authentication != null
+                ? "/queue/" + queueType + "." + authentication.getName()
+                : "/queue/" + queueType;
+    }
+
+    private boolean validateMessageType(WebSocketMessage message,
+                                         WebSocketMessage.MessageType expectedType,
+                                         String handlerName) {
+        if (message.getType() != expectedType) {
+            log.warn("Received non-{} message in {}: type={}",
+                    expectedType, handlerName, message.getType());
+            return false;
+        }
+        return true;
     }
 
 }
