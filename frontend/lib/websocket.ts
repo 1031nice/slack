@@ -11,6 +11,7 @@ export interface WebSocketMessage {
   content?: string;
   createdAt?: string;
   sequenceNumber?: number;
+  timestampId?: string;  // Timestamp-based message ID (unique per channel)
   ackId?: string;
 }
 

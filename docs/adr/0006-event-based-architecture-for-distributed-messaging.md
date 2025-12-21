@@ -77,16 +77,16 @@ Slack shifted to an event-based model:
 ```
 Message arrives with:
 {
-  event_id: "Ev1234ABC" (UUID or Snowflake ID)
-  timestamp: "2024-01-15T10:30:45.123Z"
+  timestamp_id: "1640995200123456.001" (microsecond timestamp + sequence)
   channel_id: "C123"
   content: "Hello"
+  created_at: "2024-01-15T10:30:45.123Z"
 }
 
 Client:
-1. Check: Have I seen event_id "Ev1234ABC"? No → Process it
-2. Add to seen set: seenEvents.add("Ev1234ABC")
-3. Sort all messages by timestamp for display
+1. Check: Have I seen timestamp_id "1640995200123456.001"? No → Process it
+2. Add to seen set: seenEvents.add("1640995200123456.001")
+3. Sort all messages by timestamp_id for display (chronologically ordered)
 4. Handle gaps: No concept of "missing event 5" - events arrive when they arrive
 ```
 
@@ -111,79 +111,101 @@ current sequence-based system.
 
 ## Implementation Plan
 
-### Phase 1: Snowflake ID Generation (Week 1-2)
+### Phase 1: Timestamp-Based ID Generation (Week 1-2)
 
-**Introduce event IDs without removing sequence numbers** (dual system):
+**Introduce timestamp IDs without removing sequence numbers** (dual system):
 
-#### Deployment Architecture: Embedded Service (NOT Separate Microservice)
+#### Design Decision: Channel-Scoped Uniqueness
 
-**IMPORTANT**: `SnowflakeIdGenerator` is implemented as an **embedded Spring `@Service`** within each backend application server, **NOT** as a separate microservice.
+**IMPORTANT**: Unlike globally unique Snowflake IDs, we use **channel-scoped timestamp IDs** with microsecond precision.
 
-**Why embedded, not separate service?**
+**Why channel-scoped, not globally unique?**
 
-| Aspect | Separate Service (❌ Don't do this) | Embedded Library (✅ Do this) |
-|--------|-----------------------------------|------------------------------|
-| **Network call** | Every ID needs HTTP/RPC call | Zero network calls (local generation) |
-| **Latency** | 1-5ms (network overhead) | ~0.01ms (in-memory) |
-| **Single point of failure** | Service down = no messages | Each server generates independently |
-| **Bottleneck** | All servers call one service | No coordination, horizontal scaling |
-| **Operational complexity** | Another service to deploy/monitor | Just a Spring bean |
+| Aspect | Global Uniqueness (Snowflake) | Channel-Scoped (Our Choice) |
+|--------|-------------------------------|---------------------------|
+| **Uniqueness constraint** | `UNIQUE(timestamp_id)` | `UNIQUE(channel_id, timestamp_id)` |
+| **Worker ID needed** | ✅ Yes (adds deployment complexity) | ❌ No (simpler deployment) |
+| **Configuration overhead** | Worker ID assignment per server | Zero configuration |
+| **Collision probability** | Zero (guaranteed unique) | Extremely rare (same μs + same channel) |
+| **Matches real Slack** | No (Slack uses channel-scoped) | Yes (same constraint model) |
 
-**This is different from auth-platform**:
-- Auth-platform **must** be centralized (shared user credentials, tokens)
-- Snowflake ID generator **must** be distributed (eliminate coordination)
+**Key insight**: Messages are always accessed in channel context, so global uniqueness is unnecessary. Database constraint is `UNIQUE(channel_id, timestamp_id)`, not `UNIQUE(timestamp_id)`.
 
-Real Slack, Discord, Instagram all generate IDs **locally within each app server**.
+#### Collision Probability Analysis
+
+For a collision to occur, **BOTH** must be true:
+1. Same microsecond timestamp across servers
+2. Same channel
+
+```
+Probability = P(same_microsecond) × P(same_channel)
+
+With 1000 active channels, random distribution:
+= 1 × (1/1000) = 0.1% per same-microsecond event
+
+At microsecond precision:
+- Network latency alone (100-1000μs) prevents most collisions
+- Actual collision rate: ~0.0001% of messages
+```
 
 #### Implementation
 
 ```java
 @Service
-public class SnowflakeIdGenerator {
-    // Twitter Snowflake format: 64 bits
-    // 1 bit: unused
-    // 41 bits: timestamp (milliseconds since epoch)
-    // 10 bits: server ID (supports 1024 servers)
-    // 12 bits: sequence per millisecond (4096 IDs/ms)
+public class MessageTimestampGenerator {
+    // Format: {timestamp_microseconds}.{3-digit-sequence}
+    // Example: "1640995200123456.001"
 
-    private final long workerId;
+    private long lastMicroseconds = -1L;
+    private int sequence = 0;
+    private static final int MAX_SEQUENCE = 999;
 
-    public SnowflakeIdGenerator(@Value("${slack.server-id:0}") long workerId) {
-        this.workerId = workerId; // From application.yml
-    }
+    public synchronized String generateTimestampId() {
+        long currentMicroseconds = System.nanoTime() / 1000;
 
-    public String generateEventId() {
-        long timestamp = System.currentTimeMillis() - CUSTOM_EPOCH;
-        long sequence = getSequenceForCurrentMs(); // Local counter
+        if (currentMicroseconds == lastMicroseconds) {
+            sequence++;
+            if (sequence > MAX_SEQUENCE) {
+                // Wait for next microsecond (extremely rare)
+                currentMicroseconds = waitForNextMicrosecond(currentMicroseconds);
+                sequence = 0;
+            }
+        } else {
+            sequence = 0;
+            lastMicroseconds = currentMicroseconds;
+        }
 
-        // Generated LOCALLY, no network call
-        long id = (timestamp << 22) | (workerId << 12) | sequence;
-        return "Ev" + Long.toHexString(id).toUpperCase();
+        return String.format("%d.%03d", currentMicroseconds, sequence);
     }
 }
 ```
 
-**Worker ID assignment** (simple approach for v0.5):
-```yaml
-# application-server1.yml
-slack:
-  server-id: 1
+**Why microsecond precision?**
+- 1000x finer granularity than milliseconds
+- Reduces collision window from 1ms to 1μs
+- No worker ID coordination needed
+- Simpler deployment (no server ID configuration)
 
-# application-server2.yml
-slack:
-  server-id: 2
+**Collision handling** (extremely rare):
+```java
+@Retryable(
+    value = DataIntegrityViolationException.class,
+    maxAttempts = 3,
+    backoff = @Backoff(delay = 1)
+)
+public Message saveMessage(Message message) {
+    return messageRepository.save(message);
+}
 ```
-
-For production (v1.0): Use database registry or IP-based assignment.
 
 **Migration strategy**:
 
-- All new messages get both `sequence_number` (old) and `event_id` (new)
-- PostgreSQL: Add `event_id VARCHAR(20) UNIQUE NOT NULL` column
+- All new messages get both `sequence_number` (old) and `timestamp_id` (new)
+- PostgreSQL: Add `timestamp_id VARCHAR(20)` with `UNIQUE(channel_id, timestamp_id)`
 - WebSocket messages include both fields
 - Client logic unchanged (still uses sequence numbers)
 
-**Goal**: Ensure event_id generation is stable before relying on it.
+**Goal**: Ensure timestamp_id generation is stable before relying on it.
 
 ---
 

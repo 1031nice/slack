@@ -17,6 +17,7 @@ public class WebSocketMessage {
     private String content;
     private String createdAt;
     private Long sequenceNumber;  // 메시지 순서 보장 및 ACK를 위한 시퀀스 번호
+    private String timestampId;    // Timestamp-based message ID (unique per channel)
     private String ackId;          // ACK 메시지 ID (ACK 타입일 때 사용)
 
     public enum MessageType {

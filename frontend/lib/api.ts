@@ -30,6 +30,8 @@ export interface Message {
   parentMessageId: number | null;
   createdAt: string;
   updatedAt: string;
+  sequenceNumber: number | null;
+  timestampId: string | null;  // Timestamp-based message ID (unique per channel)
 }
 
 export interface UnreadMessage {
@@ -40,6 +42,7 @@ export interface UnreadMessage {
   content: string;
   createdAt: string;
   sequenceNumber: number | null;
+  timestampId: string | null;  // Timestamp-based message ID (unique per channel)
 }
 
 export interface UnreadsViewResponse {

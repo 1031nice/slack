@@ -37,6 +37,7 @@ public class MessageService {
     private final UnreadCountService unreadCountService;
     private final MentionService mentionService;
     private final PermissionService permissionService;
+    private final MessageTimestampGenerator timestampGenerator;
 
     /**
      * Create a new message in a channel.
@@ -57,12 +58,16 @@ public class MessageService {
 
         User user = userService.findById(request.getUserId());
 
+        // Generate timestamp-based message ID (unique per channel)
+        String timestampId = timestampGenerator.generateTimestampId();
+
         Message message = Message.builder()
                 .channel(channel)
                 .user(user)
                 .content(request.getContent())
                 .parentMessage(null)
                 .sequenceNumber(request.getSequenceNumber())
+                .timestampId(timestampId)
                 .build();
 
         Message saved = messageRepository.save(message);
@@ -165,6 +170,7 @@ public class MessageService {
                 .createdAt(message.getCreatedAt())
                 .updatedAt(message.getUpdatedAt())
                 .sequenceNumber(message.getSequenceNumber())
+                .timestampId(message.getTimestampId())
                 .build();
     }
 }

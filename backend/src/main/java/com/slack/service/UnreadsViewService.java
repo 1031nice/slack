@@ -134,6 +134,7 @@ public class UnreadsViewService {
                         .content(message.getContent())
                         .createdAt(message.getCreatedAt())
                         .sequenceNumber(message.getSequenceNumber())
+                        .timestampId(message.getTimestampId())
                         .build());
             }
         }

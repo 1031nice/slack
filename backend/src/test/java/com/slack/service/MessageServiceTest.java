@@ -51,6 +51,9 @@ class MessageServiceTest {
     @Mock
     private PermissionService permissionService;
 
+    @Mock
+    private MessageTimestampGenerator timestampGenerator;
+
     @InjectMocks
     private MessageService messageService;
 
@@ -86,6 +89,7 @@ class MessageServiceTest {
                 .user(testUser)
                 .content("Hello, World!")
                 .parentMessage(null)
+                .timestampId("1640995200123.000001")
                 .build();
         setField(testMessage, "id", 1L);
         setField(testMessage, "createdAt", java.time.LocalDateTime.now());
@@ -110,6 +114,7 @@ class MessageServiceTest {
 
         when(channelRepository.findById(1L)).thenReturn(Optional.of(testChannel));
         when(userService.findById(1L)).thenReturn(testUser);
+        when(timestampGenerator.generateTimestampId()).thenReturn("1640995200123.000001");
         when(messageRepository.save(any(Message.class))).thenReturn(testMessage);
 
         // when
