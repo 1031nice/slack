@@ -20,5 +20,6 @@ public class MessageResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Long sequenceNumber; // 메시지 순서 보장을 위한 시퀀스 번호
+    private String timestampId;  // Timestamp-based message ID (unique per channel)
 }
 

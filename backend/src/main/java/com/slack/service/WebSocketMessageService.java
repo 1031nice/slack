@@ -146,6 +146,7 @@ public class WebSocketMessageService {
                 .content(message.getContent())
                 .createdAt(message.getCreatedAt().toString())
                 .sequenceNumber(message.getSequenceNumber())
+                .timestampId(message.getTimestampId())
                 .build();
     }
 
