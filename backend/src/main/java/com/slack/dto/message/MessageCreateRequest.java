@@ -11,8 +11,7 @@ import lombok.NoArgsConstructor;
 /**
  * Internal DTO for message creation.
  * This is NOT exposed to external clients via REST API.
- * Used internally by WebSocketMessageService to create messages with server-generated
- * userId and sequenceNumber.
+ * Used internally by WebSocketMessageService to create messages with server-generated userId.
  */
 @Getter
 @Builder
@@ -32,10 +31,5 @@ public class MessageCreateRequest {
     @NotBlank(message = "Message content is required")
     @Size(min = 1, message = "Message content must not be empty")
     private String content;
-
-    /**
-     * Sequence number for message ordering (server-generated via Redis INCR)
-     */
-    private Long sequenceNumber;
 }
 

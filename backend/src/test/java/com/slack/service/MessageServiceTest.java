@@ -94,7 +94,6 @@ class MessageServiceTest {
         setField(testMessage, "id", 1L);
         setField(testMessage, "createdAt", java.time.LocalDateTime.now());
         setField(testMessage, "updatedAt", java.time.LocalDateTime.now());
-        setField(testMessage, "sequenceNumber", 1L);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

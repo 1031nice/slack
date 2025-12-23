@@ -90,7 +90,6 @@ class UnreadsViewServiceTest {
                 .channel(channel1)
                 .user(user)
                 .content("Message 1")
-                .sequenceNumber(1L)
                 .build();
         setField(message1, "id", 1000L);
         setField(message1, "createdAt", LocalDateTime.now().minusHours(3));
@@ -99,7 +98,6 @@ class UnreadsViewServiceTest {
                 .channel(channel1)
                 .user(user)
                 .content("Message 2")
-                .sequenceNumber(2L)
                 .build();
         setField(message2, "id", 2000L);
         setField(message2, "createdAt", LocalDateTime.now().minusHours(2));
@@ -108,7 +106,6 @@ class UnreadsViewServiceTest {
                 .channel(channel2)
                 .user(user)
                 .content("Message 3")
-                .sequenceNumber(3L)
                 .build();
         setField(message3, "id", 3000L);
         setField(message3, "createdAt", LocalDateTime.now().minusHours(1));

@@ -211,7 +211,6 @@ export default function Home() {
           parentMessageId: null,
           createdAt: wsMessage.createdAt || new Date().toISOString(),
           updatedAt: wsMessage.createdAt || new Date().toISOString(),
-          sequenceNumber: wsMessage.sequenceNumber || null,
           timestampId: wsMessage.timestampId || null,
         };
         // Use addMessage from buffer hook for client-side ordering

@@ -18,7 +18,6 @@ public class UnreadMessageResponse {
     private Long userId;
     private String content;
     private LocalDateTime createdAt;
-    private Long sequenceNumber;
     private String timestampId;  // Timestamp-based message ID (unique per channel)
 }
 

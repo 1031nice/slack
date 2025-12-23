@@ -96,7 +96,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content("Hello @Jane and @Bob!")
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
@@ -203,7 +202,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content(content)
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
@@ -248,7 +246,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content(content)
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
@@ -275,7 +272,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content(content)
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
@@ -301,7 +297,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content(content)
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());
@@ -405,7 +400,6 @@ class MentionServiceTest {
                 .user(testUser1)
                 .content(content)
                 .parentMessage(null)
-                .sequenceNumber(1L)
                 .build();
         setField(testMessage, "id", 1000L);
         setField(testMessage, "createdAt", LocalDateTime.now());

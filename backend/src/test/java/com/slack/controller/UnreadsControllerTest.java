@@ -47,7 +47,6 @@ class UnreadsControllerTest {
                 .userId(2L)
                 .content("Test message")
                 .createdAt(LocalDateTime.now())
-                .sequenceNumber(1L)
                 .build();
 
         testResponse = UnreadsViewResponse.builder()

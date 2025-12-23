@@ -48,9 +48,6 @@ public class Message {
 
     private LocalDateTime updatedAt;
 
-    @Column(name = "sequence_number")
-    private Long sequenceNumber;
-
     @Column(name = "timestamp_id", nullable = false, length = 20)
     private String timestampId;
 
@@ -66,12 +63,11 @@ public class Message {
     }
 
     @Builder
-    public Message(Channel channel, User user, String content, Message parentMessage, Long sequenceNumber, String timestampId) {
+    public Message(Channel channel, User user, String content, Message parentMessage, String timestampId) {
         this.channel = channel;
         this.user = user;
         this.content = content;
         this.parentMessage = parentMessage;
-        this.sequenceNumber = sequenceNumber;
         this.timestampId = timestampId;
     }
 }

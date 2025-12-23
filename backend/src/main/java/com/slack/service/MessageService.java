@@ -66,7 +66,6 @@ public class MessageService {
                 .user(user)
                 .content(request.getContent())
                 .parentMessage(null)
-                .sequenceNumber(request.getSequenceNumber())
                 .timestampId(timestampId)
                 .build();
 
@@ -169,7 +168,6 @@ public class MessageService {
                 .parentMessageId(message.getParentMessage() != null ? message.getParentMessage().getId() : null)
                 .createdAt(message.getCreatedAt())
                 .updatedAt(message.getUpdatedAt())
-                .sequenceNumber(message.getSequenceNumber())
                 .timestampId(message.getTimestampId())
                 .build();
     }

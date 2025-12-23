@@ -4,15 +4,13 @@ import SockJS from 'sockjs-client';
 const WS_URL = 'http://localhost:9000/ws';
 
 export interface WebSocketMessage {
-  type: 'MESSAGE' | 'JOIN' | 'LEAVE' | 'ERROR' | 'ACK' | 'RESEND';
+  type: 'MESSAGE' | 'JOIN' | 'LEAVE' | 'ERROR' | 'RESEND';
   channelId?: number;
   messageId?: number;
   userId?: number;
   content?: string;
   createdAt?: string;
-  sequenceNumber?: number;
   timestampId?: string;  // Timestamp-based message ID (unique per channel)
-  ackId?: string;
 }
 
 export class WebSocketError extends Error {

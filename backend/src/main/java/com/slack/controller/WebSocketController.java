@@ -34,22 +34,6 @@ public class WebSocketController {
     }
 
     /**
-     * 클라이언트로부터 ACK 메시지를 받아서 처리합니다.
-     * 클라이언트는 /app/message.ack로 ACK를 보냅니다.
-     * 
-     * @param message ACK WebSocket 메시지
-     * @param authentication 인증 정보 (JWT에서 추출)
-     */
-    @MessageMapping("/message.ack")
-    public void handleAck(@Payload WebSocketMessage message, Authentication authentication) {
-        try {
-            webSocketMessageService.handleAck(message, authentication);
-        } catch (Exception e) {
-            log.error("Error handling ACK", e);
-        }
-    }
-
-    /**
      * 클라이언트로부터 재전송 요청을 받아서 처리합니다.
      * 클라이언트는 /app/message.resend로 재전송 요청을 보냅니다.
      *
