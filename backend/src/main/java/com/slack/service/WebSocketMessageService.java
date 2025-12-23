@@ -22,6 +22,8 @@ public class WebSocketMessageService {
     private final UserService userService;
     private final SimpMessagingTemplate messagingTemplate;
     private final RedisMessagePublisher redisMessagePublisher;
+    // Phase 3: MessageSequenceService is deprecated and will be removed
+    @Deprecated
     private final MessageSequenceService sequenceService;
     private final ReadReceiptService readReceiptService;
     private final AuthenticationExtractor authenticationExtractor;
@@ -34,12 +36,13 @@ public class WebSocketMessageService {
 
         String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
-        Long sequenceNumber = sequenceService.getNextSequenceNumber(message.getChannelId());
 
+        // Phase 3: sequenceNumber is deprecated, set to null
+        // Messages are now ordered by timestampId (generated in MessageService)
         MessageCreateRequest createRequest = MessageCreateRequest.builder()
                 .userId(user.getId())
                 .content(message.getContent())
-                .sequenceNumber(sequenceNumber)
+                .sequenceNumber(null) // Phase 3: No longer using sequence numbers
                 .build();
 
         MessageResponse savedMessage = messageService.createMessage(message.getChannelId(), createRequest);
@@ -87,18 +90,43 @@ public class WebSocketMessageService {
 
     /**
      * Resends messages missed since last sequence number on reconnection.
+     * @deprecated Use {@link #resendMissedMessagesByTimestamp(Long, String, Authentication)} instead (Phase 3)
      */
+    @Deprecated
     public void resendMissedMessages(Long channelId, Long lastSequenceNumber, Authentication authentication) {
         log.info("Resending missed messages for channel {} after sequence {}", channelId, lastSequenceNumber);
-        
+
         List<MessageResponse> missedMessages = messageService.getMessagesAfterSequence(channelId, lastSequenceNumber);
-        
+
         if (missedMessages.isEmpty()) {
             log.debug("No missed messages found for channel {} after sequence {}", channelId, lastSequenceNumber);
             return;
         }
-        
+
         log.info("Found {} missed messages for channel {}", missedMessages.size(), channelId);
+
+        String userDestination = getUserDestination(authentication, "resend");
+
+        for (MessageResponse msg : missedMessages) {
+            WebSocketMessage webSocketMessage = toWebSocketMessage(msg);
+            messagingTemplate.convertAndSend(userDestination, webSocketMessage);
+        }
+    }
+
+    /**
+     * Phase 3: Resends messages missed since last timestamp on reconnection.
+     */
+    public void resendMissedMessagesByTimestamp(Long channelId, String lastTimestamp, Authentication authentication) {
+        log.info("[Phase 3] Resending missed messages for channel {} after timestamp {}", channelId, lastTimestamp);
+
+        List<MessageResponse> missedMessages = messageService.getMessagesAfterTimestamp(channelId, lastTimestamp);
+
+        if (missedMessages.isEmpty()) {
+            log.debug("[Phase 3] No missed messages found for channel {} after timestamp {}", channelId, lastTimestamp);
+            return;
+        }
+
+        log.info("[Phase 3] Found {} missed messages for channel {}", missedMessages.size(), channelId);
 
         String userDestination = getUserDestination(authentication, "resend");
 
