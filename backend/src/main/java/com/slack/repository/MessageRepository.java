@@ -20,11 +20,13 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     /**
      * 특정 채널에서 시퀀스 번호 이후의 메시지를 조회합니다.
      * 재연결 시 누락된 메시지를 복구하기 위해 사용됩니다.
-     * 
+     *
      * @param channelId 채널 ID
      * @param afterSequenceNumber 이 시퀀스 번호 이후의 메시지 조회
      * @return 시퀀스 번호 순서대로 정렬된 메시지 목록
+     * @deprecated Use {@link #findMessagesAfterTimestamp(Long, String)} instead (Phase 3)
      */
+    @Deprecated
     @Query("SELECT m FROM Message m WHERE m.channel.id = :channelId " +
            "AND m.sequenceNumber IS NOT NULL " +
            "AND m.sequenceNumber > :afterSequenceNumber " +
@@ -32,6 +34,23 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findMessagesAfterSequence(
         @Param("channelId") Long channelId,
         @Param("afterSequenceNumber") Long afterSequenceNumber
+    );
+
+    /**
+     * Phase 3: 특정 채널에서 timestamp 이후의 메시지를 조회합니다.
+     * 재연결 시 누락된 메시지를 복구하기 위해 사용됩니다.
+     *
+     * @param channelId 채널 ID
+     * @param afterTimestamp 이 timestamp (timestampId 또는 createdAt) 이후의 메시지 조회
+     * @return timestamp 순서대로 정렬된 메시지 목록
+     */
+    @Query("SELECT m FROM Message m WHERE m.channel.id = :channelId " +
+           "AND (m.timestampId > :afterTimestamp OR " +
+           "     (m.timestampId IS NULL AND m.createdAt > CAST(:afterTimestamp AS timestamp))) " +
+           "ORDER BY COALESCE(m.timestampId, CAST(m.createdAt AS string)) ASC")
+    List<Message> findMessagesAfterTimestamp(
+        @Param("channelId") Long channelId,
+        @Param("afterTimestamp") String afterTimestamp
     );
 }
 

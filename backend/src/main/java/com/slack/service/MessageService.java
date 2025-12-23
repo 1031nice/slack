@@ -135,7 +135,9 @@ public class MessageService {
      * @param afterSequenceNumber fetch messages after this sequence number
      * @return list of message responses ordered by sequence number
      * @throws IllegalArgumentException if channelId or afterSequenceNumber is invalid
+     * @deprecated Use {@link #getMessagesAfterTimestamp(Long, String)} instead (Phase 3)
      */
+    @Deprecated
     public List<MessageResponse> getMessagesAfterSequence(Long channelId, Long afterSequenceNumber) {
         validateChannelId(channelId);
         if (afterSequenceNumber == null || afterSequenceNumber < 0) {
@@ -143,6 +145,27 @@ public class MessageService {
         }
 
         List<Message> messages = messageRepository.findMessagesAfterSequence(channelId, afterSequenceNumber);
+        return messages.stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Phase 3: Get messages after a specific timestamp.
+     * Used for retrieving missed messages during reconnection.
+     *
+     * @param channelId channel ID
+     * @param afterTimestamp fetch messages after this timestamp (timestampId or ISO datetime)
+     * @return list of message responses ordered by timestamp
+     * @throws IllegalArgumentException if channelId or afterTimestamp is invalid
+     */
+    public List<MessageResponse> getMessagesAfterTimestamp(Long channelId, String afterTimestamp) {
+        validateChannelId(channelId);
+        if (afterTimestamp == null || afterTimestamp.trim().isEmpty()) {
+            throw new IllegalArgumentException("Invalid timestamp: " + afterTimestamp);
+        }
+
+        List<Message> messages = messageRepository.findMessagesAfterTimestamp(channelId, afterTimestamp);
         return messages.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());

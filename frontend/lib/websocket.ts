@@ -29,9 +29,9 @@ export class WebSocketError extends Error {
 export class WebSocketClient {
   private client: Client | null = null;
   private token: string | null = null;
-  // 채널별 마지막 수신한 시퀀스 번호 추적 (Phase 3에서 제거 예정)
-  private lastSequenceNumbers: Map<number, number> = new Map();
-  // Phase 2: 채널별 수신한 timestampId 추적 (deduplication은 useMessageBuffer에서 처리)
+  // Phase 3: Track last seen timestamp per channel for reconnection
+  private lastSeenTimestamps: Map<number, string> = new Map();
+  // Track timestampIds for deduplication (handled by useMessageBuffer)
   private seenTimestampIds: Map<number, Set<string>> = new Map();
 
   connect(token: string, onConnect: () => void, onError: (error: WebSocketError) => void) {
@@ -46,8 +46,9 @@ export class WebSocketClient {
         console.log('STOMP:', str);
       },
       reconnectDelay: 5000,
-      heartbeatIncoming: 4000,
-      heartbeatOutgoing: 4000,
+      // Phase 3: 10-second heartbeat for gap detection
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
       onConnect: () => {
         console.log('WebSocket connected');
         onConnect();
@@ -110,23 +111,21 @@ export class WebSocketClient {
         try {
           const data: WebSocketMessage = JSON.parse(message.body);
 
-          // MESSAGE 타입인 경우 ACK 전송 및 시퀀스 번호/timestampId 업데이트
+          // MESSAGE 타입인 경우 timestamp 업데이트
           if (data.type === 'MESSAGE' && data.channelId !== undefined) {
-            // Phase 2: Track timestampId (deduplication happens in useMessageBuffer)
+            // Phase 3: Track timestampId for deduplication and reconnection
             if (data.timestampId) {
               const channelTimestampIds = this.seenTimestampIds.get(data.channelId);
               if (channelTimestampIds) {
                 channelTimestampIds.add(data.timestampId);
               }
+              // Update last seen timestamp for this channel
+              this.lastSeenTimestamps.set(data.channelId, data.timestampId);
             }
 
-            // Phase 2: Still track sequence numbers for reconnection (Phase 3에서 제거)
-            if (data.sequenceNumber !== undefined) {
-              const currentLast = this.lastSequenceNumbers.get(data.channelId) || 0;
-              if (data.sequenceNumber > currentLast) {
-                this.lastSequenceNumbers.set(data.channelId, data.sequenceNumber);
-              }
-              this.sendAck(data.sequenceNumber, data.messageId);
+            // Phase 3: createdAt as fallback if no timestampId
+            if (!data.timestampId && data.createdAt) {
+              this.lastSeenTimestamps.set(data.channelId, data.createdAt);
             }
           }
 
@@ -142,34 +141,7 @@ export class WebSocketClient {
     };
   }
 
-  /**
-   * 메시지 수신 확인 (ACK)을 서버에 전송합니다.
-   * 
-   * @param sequenceNumber 수신한 메시지의 시퀀스 번호
-   * @param messageId 수신한 메시지의 ID
-   */
-  private sendAck(sequenceNumber: number, messageId?: number) {
-    if (!this.client || !this.client.connected) {
-      console.error('WebSocket not connected, cannot send ACK');
-      return;
-    }
-
-    try {
-      const ackMessage: WebSocketMessage = {
-        type: 'ACK',
-        sequenceNumber,
-        messageId,
-        ackId: `ack-${Date.now()}-${sequenceNumber}`, // 고유한 ACK ID 생성
-      };
-
-      this.client.publish({
-        destination: '/app/message.ack',
-        body: JSON.stringify(ackMessage),
-      });
-    } catch (error) {
-      console.error('Error sending ACK:', error);
-    }
-  }
+  // Phase 3: ACK removed - no longer needed with timestamp-based ordering
 
   sendMessage(channelId: number, content: string): boolean {
     if (!this.client || !this.client.connected) {
@@ -196,29 +168,29 @@ export class WebSocketClient {
   }
 
   /**
-   * 재연결 시 누락된 메시지를 요청합니다.
-   * 모든 구독 중인 채널에 대해 마지막 수신한 시퀀스 번호 이후의 메시지를 요청합니다.
+   * Phase 3: Request missed messages using timestamp-based approach.
+   * Requests all messages after the last seen timestamp for each channel.
    */
   private requestMissedMessages() {
     if (!this.client || !this.client.connected) {
       return;
     }
 
-    // 모든 구독 중인 채널에 대해 누락 메시지 요청
-    this.lastSequenceNumbers.forEach((lastSequence, channelId) => {
+    // Request missed messages for all subscribed channels
+    this.lastSeenTimestamps.forEach((lastTimestamp, channelId) => {
       try {
         const resendMessage: WebSocketMessage = {
           type: 'RESEND',
           channelId,
-          sequenceNumber: lastSequence,
+          createdAt: lastTimestamp, // Use timestamp instead of sequence number
         };
 
         this.client!.publish({
           destination: '/app/message.resend',
           body: JSON.stringify(resendMessage),
         });
-        
-        console.log(`Requested missed messages for channel ${channelId} after sequence ${lastSequence}`);
+
+        console.log(`[Phase 3] Requested missed messages for channel ${channelId} after timestamp ${lastTimestamp}`);
       } catch (error) {
         console.error(`Error requesting missed messages for channel ${channelId}:`, error);
       }
@@ -226,14 +198,14 @@ export class WebSocketClient {
   }
 
   /**
-   * 채널 구독을 시작할 때 호출하여 초기 시퀀스 번호를 설정합니다.
-   * 
-   * @param channelId 채널 ID
-   * @param initialSequenceNumber 초기 시퀀스 번호 (없으면 0)
+   * Phase 3: Set initial timestamp for a channel when starting subscription.
+   *
+   * @param channelId Channel ID
+   * @param initialTimestamp Initial timestamp (ISO string or timestampId)
    */
-  public setInitialSequenceNumber(channelId: number, initialSequenceNumber: number = 0) {
-    if (!this.lastSequenceNumbers.has(channelId)) {
-      this.lastSequenceNumbers.set(channelId, initialSequenceNumber);
+  public setInitialTimestamp(channelId: number, initialTimestamp?: string) {
+    if (initialTimestamp && !this.lastSeenTimestamps.has(channelId)) {
+      this.lastSeenTimestamps.set(channelId, initialTimestamp);
     }
   }
 
