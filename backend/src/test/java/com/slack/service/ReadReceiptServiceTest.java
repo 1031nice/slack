@@ -61,7 +61,7 @@ class ReadReceiptServiceTest {
 
     private static final Long USER_ID = 1L;
     private static final Long CHANNEL_ID = 100L;
-    private static final Long SEQUENCE_NUMBER = 50L;
+    private static final String TIMESTAMP_ID = "1735046400000050";
 
     @BeforeEach
     void setUp() throws Exception {
@@ -108,11 +108,11 @@ class ReadReceiptServiceTest {
         lenient().doNothing().when(valueOperations).set(anyString(), anyString());
 
         // when
-        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, SEQUENCE_NUMBER);
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
 
         // then
         String expectedKey = "read_receipt:1:100";
-        verify(valueOperations, times(1)).set(eq(expectedKey), eq("50"));
+        verify(valueOperations, times(1)).set(eq(expectedKey), eq(TIMESTAMP_ID));
         verify(messagingTemplate, times(1)).convertAndSend(
                 eq("/topic/channel.100"),
                 any(com.slack.dto.websocket.WebSocketMessage.class)
@@ -120,16 +120,16 @@ class ReadReceiptServiceTest {
     }
 
     @Test
-    @DisplayName("유효하지 않은 sequenceNumber는 무시된다")
-    void updateReadReceipt_InvalidSequence() {
+    @DisplayName("유효하지 않은 timestamp는 무시된다")
+    void updateReadReceipt_InvalidTimestamp() {
         // when
         readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, null);
-        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, -1L);
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, "");
 
         // then
         verify(valueOperations, never()).set(anyString(), anyString());
         verify(messagingTemplate, never()).convertAndSend(
-                anyString(), 
+                anyString(),
                 any(com.slack.dto.websocket.WebSocketMessage.class)
         );
     }
@@ -139,13 +139,13 @@ class ReadReceiptServiceTest {
     void getReadReceipt_Success() {
         // given
         String key = "read_receipt:1:100";
-        when(valueOperations.get(key)).thenReturn("50");
+        when(valueOperations.get(key)).thenReturn(TIMESTAMP_ID);
 
         // when
-        Long result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
+        String result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
 
         // then
-        assertThat(result).isEqualTo(50L);
+        assertThat(result).isEqualTo(TIMESTAMP_ID);
         verify(valueOperations, times(1)).get(key);
     }
 
@@ -157,24 +157,25 @@ class ReadReceiptServiceTest {
         when(valueOperations.get(key)).thenReturn(null);
 
         // when
-        Long result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
+        String result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
 
         // then
         assertThat(result).isNull();
     }
 
     @Test
-    @DisplayName("잘못된 형식의 read receipt는 null을 반환한다")
-    void getReadReceipt_InvalidFormat() {
+    @DisplayName("잘못된 형식의 read receipt도 문자열로 반환한다")
+    void getReadReceipt_ReturnsString() {
         // given
         String key = "read_receipt:1:100";
-        when(valueOperations.get(key)).thenReturn("invalid");
+        String anyTimestamp = "any-timestamp-value";
+        when(valueOperations.get(key)).thenReturn(anyTimestamp);
 
         // when
-        Long result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
+        String result = readReceiptService.getReadReceipt(USER_ID, CHANNEL_ID);
 
         // then
-        assertThat(result).isNull();
+        assertThat(result).isEqualTo(anyTimestamp);
     }
 
     @Test
@@ -183,16 +184,16 @@ class ReadReceiptServiceTest {
         // given
         List<Long> memberIds = Arrays.asList(1L, 2L);
         when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
-        when(valueOperations.get("read_receipt:1:100")).thenReturn("50");
-        when(valueOperations.get("read_receipt:2:100")).thenReturn("45");
+        when(valueOperations.get("read_receipt:1:100")).thenReturn("1735046400000050");
+        when(valueOperations.get("read_receipt:2:100")).thenReturn("1735046400000045");
 
         // when
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
+        Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
 
         // then
         assertThat(readReceipts).hasSize(2);
-        assertThat(readReceipts.get(1L)).isEqualTo(50L);
-        assertThat(readReceipts.get(2L)).isEqualTo(45L);
+        assertThat(readReceipts.get(1L)).isEqualTo("1735046400000050");
+        assertThat(readReceipts.get(2L)).isEqualTo("1735046400000045");
     }
 
     @Test
@@ -201,17 +202,17 @@ class ReadReceiptServiceTest {
         // given
         List<Long> memberIds = Arrays.asList(1L, 2L, 3L);
         when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
-        when(valueOperations.get("read_receipt:1:100")).thenReturn("50");
+        when(valueOperations.get("read_receipt:1:100")).thenReturn("1735046400000050");
         when(valueOperations.get("read_receipt:2:100")).thenReturn(null);
-        when(valueOperations.get("read_receipt:3:100")).thenReturn("30");
+        when(valueOperations.get("read_receipt:3:100")).thenReturn("1735046400000030");
 
         // when
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
+        Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
 
         // then
         assertThat(readReceipts).hasSize(2);
-        assertThat(readReceipts.get(1L)).isEqualTo(50L);
-        assertThat(readReceipts.get(3L)).isEqualTo(30L);
+        assertThat(readReceipts.get(1L)).isEqualTo("1735046400000050");
+        assertThat(readReceipts.get(3L)).isEqualTo("1735046400000030");
         assertThat(readReceipts).doesNotContainKey(2L);
     }
 
@@ -222,7 +223,7 @@ class ReadReceiptServiceTest {
         lenient().doNothing().when(valueOperations).set(anyString(), anyString());
 
         // when
-        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, SEQUENCE_NUMBER);
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
 
         // then
         ArgumentCaptor<com.slack.dto.websocket.WebSocketMessage> messageCaptor =
@@ -236,6 +237,6 @@ class ReadReceiptServiceTest {
         assertThat(message.getType()).isEqualTo(com.slack.dto.websocket.WebSocketMessage.MessageType.READ);
         assertThat(message.getChannelId()).isEqualTo(CHANNEL_ID);
         assertThat(message.getUserId()).isEqualTo(USER_ID);
-        assertThat(message.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+        assertThat(message.getCreatedAt()).isEqualTo(TIMESTAMP_ID);
     }
 }

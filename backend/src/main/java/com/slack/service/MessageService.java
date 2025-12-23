@@ -128,30 +128,7 @@ public class MessageService {
     }
 
     /**
-     * Get messages after a specific sequence number.
-     * Used for retrieving missed messages during reconnection.
-     *
-     * @param channelId channel ID
-     * @param afterSequenceNumber fetch messages after this sequence number
-     * @return list of message responses ordered by sequence number
-     * @throws IllegalArgumentException if channelId or afterSequenceNumber is invalid
-     * @deprecated Use {@link #getMessagesAfterTimestamp(Long, String)} instead (Phase 3)
-     */
-    @Deprecated
-    public List<MessageResponse> getMessagesAfterSequence(Long channelId, Long afterSequenceNumber) {
-        validateChannelId(channelId);
-        if (afterSequenceNumber == null || afterSequenceNumber < 0) {
-            throw new IllegalArgumentException("Invalid sequence number: " + afterSequenceNumber);
-        }
-
-        List<Message> messages = messageRepository.findMessagesAfterSequence(channelId, afterSequenceNumber);
-        return messages.stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Phase 3: Get messages after a specific timestamp.
+     * Get messages after a specific timestamp.
      * Used for retrieving missed messages during reconnection.
      *
      * @param channelId channel ID

@@ -43,9 +43,6 @@ class WebSocketMessageServiceTest {
     private RedisMessagePublisher redisMessagePublisher;
 
     @Mock
-    private MessageSequenceService sequenceService;
-
-    @Mock
     private ReadReceiptService readReceiptService;
 
     @Mock
@@ -109,7 +106,6 @@ class WebSocketMessageServiceTest {
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenReturn(testMessageResponse);
-        when(sequenceService.getNextSequenceNumber(anyLong())).thenReturn(1L);
 
         // when
         WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);

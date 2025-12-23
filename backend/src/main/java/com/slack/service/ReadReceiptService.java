@@ -47,27 +47,27 @@ public class ReadReceiptService {
      *
      * @param userId User ID
      * @param channelId Channel ID
-     * @param lastReadSequence Last read sequence number
+     * @param lastReadTimestamp Last read timestamp (timestampId or ISO datetime)
      */
     @Transactional
-    public void updateReadReceipt(Long userId, Long channelId, Long lastReadSequence) {
-        if (lastReadSequence == null || lastReadSequence < 0) {
-            log.warn("Invalid lastReadSequence: {}", lastReadSequence);
+    public void updateReadReceipt(Long userId, Long channelId, String lastReadTimestamp) {
+        if (lastReadTimestamp == null || lastReadTimestamp.trim().isEmpty()) {
+            log.warn("Invalid lastReadTimestamp: {}", lastReadTimestamp);
             return;
         }
 
         // 1. Update Redis (fast, real-time)
         String redisKey = buildRedisKey(userId, channelId);
-        redisTemplate.opsForValue().set(redisKey, lastReadSequence.toString());
+        redisTemplate.opsForValue().set(redisKey, lastReadTimestamp);
 
-        log.debug("Updated read receipt in Redis: userId={}, channelId={}, sequence={}",
-                userId, channelId, lastReadSequence);
+        log.debug("Updated read receipt in Redis: userId={}, channelId={}, timestamp={}",
+                userId, channelId, lastReadTimestamp);
 
         // 2. Broadcast via WebSocket (real-time notification)
-        broadcastReadReceipt(userId, channelId, lastReadSequence);
+        broadcastReadReceipt(userId, channelId, lastReadTimestamp);
 
         // 3. Persist to DB asynchronously (durability, no blocking)
-        persistToDatabase(userId, channelId, lastReadSequence);
+        persistToDatabase(userId, channelId, lastReadTimestamp);
     }
 
     /**
@@ -78,21 +78,15 @@ public class ReadReceiptService {
      *
      * @param userId User ID
      * @param channelId Channel ID
-     * @return Last read sequence number, or null if not found
+     * @return Last read timestamp, or null if not found
      */
-    public Long getReadReceipt(Long userId, Long channelId) {
+    public String getReadReceipt(Long userId, Long channelId) {
         String redisKey = buildRedisKey(userId, channelId);
 
         // 1. Try Redis first (cache hit)
         Object value = redisTemplate.opsForValue().get(redisKey);
         if (value != null) {
-            try {
-                return Long.parseLong(value.toString());
-            } catch (NumberFormatException e) {
-                log.error("Invalid read receipt format in Redis: userId={}, channelId={}, value={}",
-                        userId, channelId, value);
-                // Continue to DB fallback
-            }
+            return value.toString();
         }
 
         // 2. Redis miss - fallback to DB (recovery scenario)
@@ -101,14 +95,14 @@ public class ReadReceiptService {
 
         return readReceiptRepository.findByUserIdAndChannelId(userId, channelId)
                 .map(receipt -> {
-                    Long sequence = receipt.getLastReadSequence();
+                    String timestamp = receipt.getLastReadTimestamp();
 
                     // 3. Repopulate Redis (cache warming)
-                    redisTemplate.opsForValue().set(redisKey, sequence.toString());
-                    log.debug("Repopulated Redis from DB: userId={}, channelId={}, sequence={}",
-                            userId, channelId, sequence);
+                    redisTemplate.opsForValue().set(redisKey, timestamp);
+                    log.debug("Repopulated Redis from DB: userId={}, channelId={}, timestamp={}",
+                            userId, channelId, timestamp);
 
-                    return sequence;
+                    return timestamp;
                 })
                 .orElse(null);
     }
@@ -118,22 +112,22 @@ public class ReadReceiptService {
      *
      * @param channelId Channel ID
      * @param userId user ID requesting the read receipts
-     * @return Map of userId -> lastReadSequence
+     * @return Map of userId -> lastReadTimestamp
      */
-    public java.util.Map<Long, Long> getChannelReadReceipts(Long channelId, Long userId) {
+    public java.util.Map<Long, String> getChannelReadReceipts(Long channelId, Long userId) {
         // Authorization: must have channel access
         permissionService.requireChannelAccess(userId, channelId);
 
         List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
-        
-        java.util.Map<Long, Long> readReceipts = new java.util.HashMap<>();
+
+        java.util.Map<Long, String> readReceipts = new java.util.HashMap<>();
         for (Long memberId : memberIds) {
-            Long sequence = getReadReceipt(memberId, channelId);
-            if (sequence != null) {
-                readReceipts.put(memberId, sequence);
+            String timestamp = getReadReceipt(memberId, channelId);
+            if (timestamp != null) {
+                readReceipts.put(memberId, timestamp);
             }
         }
-        
+
         return readReceipts;
     }
 
@@ -144,19 +138,19 @@ public class ReadReceiptService {
      * @param channelId Channel ID
      * @param lastReadSequence Last read sequence number
      */
-    private void broadcastReadReceipt(Long userId, Long channelId, Long lastReadSequence) {
+    private void broadcastReadReceipt(Long userId, Long channelId, String lastReadTimestamp) {
         WebSocketMessage readReceiptMessage = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.READ)
                 .channelId(channelId)
                 .userId(userId)
-                .sequenceNumber(lastReadSequence)
+                .createdAt(lastReadTimestamp)  // Use createdAt field for timestamp
                 .build();
 
         String channelDestination = "/topic/channel." + channelId;
         messagingTemplate.convertAndSend(channelDestination, readReceiptMessage);
-        
-        log.debug("Broadcasted read receipt: userId={}, channelId={}, sequence={}", 
-                userId, channelId, lastReadSequence);
+
+        log.debug("Broadcasted read receipt: userId={}, channelId={}, timestamp={}",
+                userId, channelId, lastReadTimestamp);
     }
 
     /**
@@ -170,7 +164,7 @@ public class ReadReceiptService {
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected void persistToDatabase(Long userId, Long channelId, Long lastReadSequence) {
+    protected void persistToDatabase(Long userId, Long channelId, String lastReadTimestamp) {
         try {
             ReadReceipt receipt = readReceiptRepository
                     .findByUserIdAndChannelId(userId, channelId)
@@ -180,20 +174,20 @@ public class ReadReceiptService {
                         return ReadReceipt.builder()
                                 .user(user)
                                 .channel(channel)
-                                .lastReadSequence(0L)
+                                .lastReadTimestamp("0")  // Initial timestamp
                                 .build();
                     });
 
-            receipt.updateLastReadSequence(lastReadSequence);
+            receipt.updateLastReadTimestamp(lastReadTimestamp);
             readReceiptRepository.save(receipt);
 
-            log.debug("Persisted read receipt to DB: userId={}, channelId={}, sequence={}",
-                    userId, channelId, lastReadSequence);
+            log.debug("Persisted read receipt to DB: userId={}, channelId={}, timestamp={}",
+                    userId, channelId, lastReadTimestamp);
 
         } catch (Exception e) {
             log.error("Failed to persist read receipt to DB (Redis already updated): " +
-                            "userId={}, channelId={}, sequence={}",
-                    userId, channelId, lastReadSequence, e);
+                            "userId={}, channelId={}, timestamp={}",
+                    userId, channelId, lastReadTimestamp, e);
             // Redis is already updated, so user experience is not affected
             // DB will be eventually consistent through retry or next update
         }

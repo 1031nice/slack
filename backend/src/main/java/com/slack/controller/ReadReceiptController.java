@@ -23,14 +23,14 @@ public class ReadReceiptController {
      *
      * @param channelId Channel ID
      * @param user Authenticated user
-     * @return Last read sequence number
+     * @return Last read timestamp
      */
     @GetMapping("/channels/{channelId}/read-receipt")
-    public ResponseEntity<Map<String, Long>> getReadReceipt(
+    public ResponseEntity<Map<String, String>> getReadReceipt(
             @PathVariable Long channelId,
             @AuthenticationPrincipal User user) {
-        Long lastReadSequence = readReceiptService.getReadReceipt(user.getId(), channelId);
-        return ok(Map.of("lastReadSequence", lastReadSequence != null ? lastReadSequence : 0L));
+        String lastReadTimestamp = readReceiptService.getReadReceipt(user.getId(), channelId);
+        return ok(Map.of("lastReadTimestamp", lastReadTimestamp != null ? lastReadTimestamp : "0"));
     }
 
     /**
@@ -38,13 +38,13 @@ public class ReadReceiptController {
      *
      * @param channelId Channel ID
      * @param user Authenticated user
-     * @return Map of userId -> lastReadSequence
+     * @return Map of userId -> lastReadTimestamp
      */
     @GetMapping("/channels/{channelId}/read-receipts")
-    public ResponseEntity<Map<Long, Long>> getChannelReadReceipts(
+    public ResponseEntity<Map<Long, String>> getChannelReadReceipts(
             @PathVariable Long channelId,
             @AuthenticationPrincipal User user) {
-        Map<Long, Long> readReceipts = readReceiptService.getChannelReadReceipts(channelId, user.getId());
+        Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(channelId, user.getId());
         return ok(readReceipts);
     }
 }

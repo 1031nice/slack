@@ -53,10 +53,7 @@ public class WebSocketController {
      * 클라이언트로부터 재전송 요청을 받아서 처리합니다.
      * 클라이언트는 /app/message.resend로 재전송 요청을 보냅니다.
      *
-     * Phase 3: Supports both sequence-based and timestamp-based reconnection.
-     * Priority: createdAt (timestamp) > sequenceNumber (deprecated)
-     *
-     * @param message 재전송 요청 WebSocket 메시지 (channelId + createdAt 또는 sequenceNumber)
+     * @param message 재전송 요청 WebSocket 메시지 (channelId + createdAt)
      * @param authentication 인증 정보 (JWT에서 추출)
      */
     @MessageMapping("/message.resend")
@@ -67,26 +64,17 @@ public class WebSocketController {
                 return;
             }
 
-            // Phase 3: Prefer timestamp-based reconnection
-            if (message.getCreatedAt() != null && !message.getCreatedAt().trim().isEmpty()) {
-                log.info("[Phase 3] Handling timestamp-based resend for channel {}", message.getChannelId());
-                webSocketMessageService.resendMissedMessagesByTimestamp(
-                        message.getChannelId(),
-                        message.getCreatedAt(),
-                        authentication
-                );
+            if (message.getCreatedAt() == null || message.getCreatedAt().trim().isEmpty()) {
+                log.warn("Invalid resend request: createdAt is missing for channelId={}", message.getChannelId());
+                return;
             }
-            // Fallback: sequence-based reconnection (deprecated)
-            else if (message.getSequenceNumber() != null) {
-                log.info("[Deprecated] Handling sequence-based resend for channel {}", message.getChannelId());
-                webSocketMessageService.resendMissedMessages(
-                        message.getChannelId(),
-                        message.getSequenceNumber(),
-                        authentication
-                );
-            } else {
-                log.warn("Invalid resend request: both createdAt and sequenceNumber are missing");
-            }
+
+            log.info("Handling timestamp-based resend for channel {}", message.getChannelId());
+            webSocketMessageService.resendMissedMessagesByTimestamp(
+                    message.getChannelId(),
+                    message.getCreatedAt(),
+                    authentication
+            );
         } catch (Exception e) {
             log.error("Error handling resend request", e);
             webSocketMessageService.sendErrorMessage(authentication, "Failed to resend messages: " + e.getMessage());
@@ -96,19 +84,18 @@ public class WebSocketController {
     /**
      * 클라이언트로부터 읽음 처리 요청을 받아서 처리합니다.
      * 클라이언트는 /app/message.read로 읽음 처리를 보냅니다.
-     * 
-     * @param message 읽음 처리 WebSocket 메시지 (channelId, sequenceNumber 포함)
+     *
+     * @param message 읽음 처리 WebSocket 메시지 (channelId, createdAt 포함)
      * @param authentication 인증 정보 (JWT에서 추출)
      */
     @MessageMapping("/message.read")
     public void handleRead(@Payload WebSocketMessage message, Authentication authentication) {
         try {
-            if (message.getChannelId() == null || message.getSequenceNumber() == null) {
-                log.warn("Invalid read request: channelId={}, sequenceNumber={}", 
-                        message.getChannelId(), message.getSequenceNumber());
+            if (message.getChannelId() == null) {
+                log.warn("Invalid read request: channelId is null");
                 return;
             }
-            
+
             webSocketMessageService.handleRead(message, authentication);
         } catch (Exception e) {
             log.error("Error handling read request", e);

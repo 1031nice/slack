@@ -31,11 +31,12 @@ public class ReadReceipt {
     private Channel channel;
 
     /**
-     * 마지막으로 읽은 메시지의 시퀀스 번호
-     * 이 시퀀스 번호 이하의 모든 메시지를 읽은 것으로 간주
+     * 마지막으로 읽은 메시지의 timestamp
+     * 이 timestamp 이하의 모든 메시지를 읽은 것으로 간주
+     * Format: timestampId (e.g., "1735046400000001") or ISO datetime
      */
-    @Column(name = "last_read_sequence", nullable = false)
-    private Long lastReadSequence;
+    @Column(name = "last_read_timestamp", nullable = false, length = 30)
+    private String lastReadTimestamp;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -54,20 +55,20 @@ public class ReadReceipt {
     }
 
     @Builder
-    public ReadReceipt(User user, Channel channel, Long lastReadSequence) {
+    public ReadReceipt(User user, Channel channel, String lastReadTimestamp) {
         this.user = user;
         this.channel = channel;
-        this.lastReadSequence = lastReadSequence;
+        this.lastReadTimestamp = lastReadTimestamp;
     }
 
     /**
-     * Update last read sequence number
-     * 
-     * @param sequenceNumber New sequence number (must be >= current)
+     * Update last read timestamp
+     *
+     * @param timestamp New timestamp (must be >= current lexicographically)
      */
-    public void updateLastReadSequence(Long sequenceNumber) {
-        if (sequenceNumber != null && (this.lastReadSequence == null || sequenceNumber >= this.lastReadSequence)) {
-            this.lastReadSequence = sequenceNumber;
+    public void updateLastReadTimestamp(String timestamp) {
+        if (timestamp != null && (this.lastReadTimestamp == null || timestamp.compareTo(this.lastReadTimestamp) >= 0)) {
+            this.lastReadTimestamp = timestamp;
         }
     }
 }
