@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useMessageBuffer } from '@/hooks/useMessageBuffer';
 import { fetchChannels, fetchMessages, fetchWorkspaces, fetchUnreads, createChannel, Channel, Message, Workspace, UnreadMessage, ApiError } from '@/lib/api';
 import { WebSocketMessage } from '@/lib/websocket';
 import { getAuthToken, isValidToken, removeAuthToken } from '@/lib/auth';
@@ -21,7 +22,7 @@ export default function Home() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages, addMessage, setMessages } = useMessageBuffer();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
@@ -96,12 +97,12 @@ export default function Home() {
     if (!selectedWorkspaceId || !token) {
       setChannels([]);
       setSelectedChannelId(null);
-      setMessages([]); // 워크스페이스가 없으면 메시지도 초기화
+      setMessages([]); // 워크스페이스가 없으면 메시지도 초기화 (from buffer hook)
       return;
     }
 
     setError(null);
-    setMessages([]); // 워크스페이스가 변경되면 메시지 초기화
+    setMessages([]); // 워크스페이스가 변경되면 메시지 초기화 (from buffer hook)
 
     fetchChannels(selectedWorkspaceId, token)
       .then((channels) => {
@@ -128,9 +129,9 @@ export default function Home() {
         }
         setChannels([]);
         setSelectedChannelId(null);
-        setMessages([]); // 에러 발생 시 메시지도 초기화
+        setMessages([]); // 에러 발생 시 메시지도 초기화 (from buffer hook)
       });
-  }, [token, selectedWorkspaceId]);
+  }, [token, selectedWorkspaceId, setMessages]);
 
   // 선택된 채널의 메시지 로드
   useEffect(() => {
@@ -210,13 +211,16 @@ export default function Home() {
           parentMessageId: null,
           createdAt: wsMessage.createdAt || new Date().toISOString(),
           updatedAt: wsMessage.createdAt || new Date().toISOString(),
+          sequenceNumber: wsMessage.sequenceNumber || null,
+          timestampId: wsMessage.timestampId || null,
         };
-        setMessages((prev) => [...prev, newMessage]);
+        // Use addMessage from buffer hook for client-side ordering
+        addMessage(newMessage);
       }
     });
 
     return unsubscribe;
-  }, [selectedChannelId, isConnected, subscribeToChannel, showUnreads]);
+  }, [selectedChannelId, isConnected, subscribeToChannel, showUnreads, addMessage]);
 
   // 주기적으로 채널 목록을 갱신하여 unreadCount 업데이트
   useEffect(() => {

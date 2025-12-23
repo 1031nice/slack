@@ -29,8 +29,10 @@ export class WebSocketError extends Error {
 export class WebSocketClient {
   private client: Client | null = null;
   private token: string | null = null;
-  // 채널별 마지막 수신한 시퀀스 번호 추적
+  // 채널별 마지막 수신한 시퀀스 번호 추적 (Phase 3에서 제거 예정)
   private lastSequenceNumbers: Map<number, number> = new Map();
+  // Phase 2: 채널별 수신한 timestampId 추적 (deduplication은 useMessageBuffer에서 처리)
+  private seenTimestampIds: Map<number, Set<string>> = new Map();
 
   connect(token: string, onConnect: () => void, onError: (error: WebSocketError) => void) {
     this.token = token;
@@ -97,23 +99,37 @@ export class WebSocketClient {
       return () => {};
     }
 
+    // Initialize timestampId Set for this channel if not exists
+    if (!this.seenTimestampIds.has(channelId)) {
+      this.seenTimestampIds.set(channelId, new Set());
+    }
+
     const subscription = this.client.subscribe(
       `/topic/channel.${channelId}`,
       (message) => {
         try {
           const data: WebSocketMessage = JSON.parse(message.body);
-          
-          // MESSAGE 타입인 경우 ACK 전송 및 시퀀스 번호 업데이트
-          if (data.type === 'MESSAGE' && data.sequenceNumber !== undefined && data.channelId !== undefined) {
-            // 마지막 시퀀스 번호 업데이트
-            const currentLast = this.lastSequenceNumbers.get(data.channelId) || 0;
-            if (data.sequenceNumber > currentLast) {
-              this.lastSequenceNumbers.set(data.channelId, data.sequenceNumber);
+
+          // MESSAGE 타입인 경우 ACK 전송 및 시퀀스 번호/timestampId 업데이트
+          if (data.type === 'MESSAGE' && data.channelId !== undefined) {
+            // Phase 2: Track timestampId (deduplication happens in useMessageBuffer)
+            if (data.timestampId) {
+              const channelTimestampIds = this.seenTimestampIds.get(data.channelId);
+              if (channelTimestampIds) {
+                channelTimestampIds.add(data.timestampId);
+              }
             }
-            
-            this.sendAck(data.sequenceNumber, data.messageId);
+
+            // Phase 2: Still track sequence numbers for reconnection (Phase 3에서 제거)
+            if (data.sequenceNumber !== undefined) {
+              const currentLast = this.lastSequenceNumbers.get(data.channelId) || 0;
+              if (data.sequenceNumber > currentLast) {
+                this.lastSequenceNumbers.set(data.channelId, data.sequenceNumber);
+              }
+              this.sendAck(data.sequenceNumber, data.messageId);
+            }
           }
-          
+
           callback(data);
         } catch (error) {
           console.error('Error parsing message:', error);
