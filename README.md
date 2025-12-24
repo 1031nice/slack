@@ -29,10 +29,10 @@ tutorials. Every architectural decision is documented with its trade-offs, limit
 - **Monitoring**: Micrometer + Prometheus
 - **Infrastructure**: Docker Compose
 
-## Current Status: v0.3 ✅
+## Current Status: v0.5 ✅
 
-Multi-server messaging with Redis Pub/Sub, sequence-based ordering, and client reconnection.
-See [v0.3 details](#v03---distributed-messaging--current) below.
+Event-based architecture with timestamp-based message IDs, client-side ordering, and distributed ID generation.
+See [v0.5 details](#v05---event-based-architecture-migration) below.
 
 ## Version Roadmap
 
@@ -75,7 +75,7 @@ See [v0.3 details](#v03---distributed-messaging--current) below.
 
 ---
 
-### v0.3 - Distributed Messaging ✅ (Current)
+### v0.3 - Distributed Messaging ✅
 
 **Goal**: Multi-server architecture with Redis Pub/Sub
 
@@ -123,13 +123,13 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.4 - Read Status & Notifications (Next)
+### v0.4 - Read Status & Notifications ✅
 
 **Goal**: User engagement features with eventual consistency
 
-**Note**: This version uses the current sequence-based ordering. Event-based migration happens in v0.5.
+**Note**: This version was initially built with sequence-based ordering, then migrated to event-based in v0.5.
 
-**Planned**:
+**Implemented**:
 
 1. **Unread Count Tracking**:
     - Redis Sorted Set per user per channel
@@ -181,7 +181,7 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 
 ---
 
-### v0.5 - Event-Based Architecture Migration
+### v0.5 - Event-Based Architecture Migration ✅
 
 **Goal**: Migrate from sequence-based to event-based messaging (Slack's production architecture)
 
@@ -195,14 +195,15 @@ Current sequence-based ordering creates bottlenecks at scale:
 
 Real Slack solved this by moving to event-based architecture with distributed ID generation.
 
-**Implementation (3-phase migration)**:
+**Implemented (3-phase migration)**:
 
-**Phase 1: Snowflake ID Generation**
+**Phase 1: Timestamp-based ID Generation**
 
-- Introduce `event_id` alongside `sequence_number` (dual system)
-- Twitter Snowflake format: 64-bit IDs with timestamp + server ID + sequence
-- Example: `Ev01H2K3M4N5P6` (no coordination, generated locally)
-- PostgreSQL: Add `event_id` column (migration without downtime)
+- Introduced `timestampId` to replace `sequence_number`
+- Microsecond precision format: `{unix_timestamp_μs}.{3-digit-sequence}`
+- Example: `1640995200123456.001` (chronologically sortable, no coordination needed)
+- PostgreSQL: Added `timestamp_id` column with migration
+- Implemented in `MessageTimestampGenerator` service
 
 **Phase 2: Client-Side Ordering with Time Buffer**
 
@@ -224,8 +225,8 @@ Real Slack solved this by moving to event-based architecture with distributed ID
 // Before: Track single number
 lastSequenceNumber: number = 0
 
-// After: Track set of seen events
-seenEvents: Set<string> = new Set()
+// After: Track set of seen timestamp IDs
+seenTimestampIds: Set<string> = new Set()
 
 // Before: Gap detection
 if (msg.sequenceNumber !== lastSequenceNumber + 1) {
@@ -233,8 +234,8 @@ if (msg.sequenceNumber !== lastSequenceNumber + 1) {
 }
 
 // After: Deduplication + time-based ordering
-if (!seenEvents.has(msg.event_id)) {
-  seenEvents.add(msg.event_id)
+if (!seenTimestampIds.has(msg.timestampId)) {
+  seenTimestampIds.add(msg.timestampId)
   buffer.add(msg)
   sortByTimestamp()
 }
@@ -268,11 +269,11 @@ rationale and alternatives considered.
 
 ---
 
-### v0.6 - Thread Support
+### v0.6 - Thread Support (Next)
 
 **Goal**: Nested conversations with query optimization
 
-**Note**: Threads will use `event_id` from day one (clean implementation post-migration).
+**Note**: Threads will use `timestampId` from day one (clean implementation post-migration).
 
 **Planned**:
 
@@ -285,7 +286,7 @@ rationale and alternatives considered.
     - Cache threads with >10 replies in last hour
     - Invalidation on new reply
 - Pagination for long threads (cursor-based, not offset)
-- **Idempotency**: Use `event_id` for deduplication (no duplicate threads)
+- **Idempotency**: Use `timestampId` for deduplication (no duplicate threads)
 
 **Learning Focus**:
 
