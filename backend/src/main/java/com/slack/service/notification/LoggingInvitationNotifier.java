@@ -6,11 +6,12 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 /**
- * Development-only notifier that logs invitation details instead of sending emails.
+ * Non-production notifier that logs invitation details instead of sending emails.
+ * Used in all environments except production (dev, test, 9000, 9001, 9002, etc.)
  */
 @Slf4j
 @Service
-@Profile("dev")
+@Profile("!prod")
 public class LoggingInvitationNotifier implements InvitationNotifier {
 
     @Override

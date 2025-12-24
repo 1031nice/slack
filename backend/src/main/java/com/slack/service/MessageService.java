@@ -44,7 +44,7 @@ public class MessageService {
      * This method is internal-only, called by WebSocketMessageService.
      *
      * @param channelId channel ID
-     * @param request message creation request (with server-generated userId and sequenceNumber)
+     * @param request message creation request (with server-generated userId and timestampId)
      * @return created message response
      * @throws IllegalArgumentException if channelId is invalid
      * @throws ChannelNotFoundException if channel not found

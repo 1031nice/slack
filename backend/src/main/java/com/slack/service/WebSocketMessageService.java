@@ -103,7 +103,7 @@ public class WebSocketMessageService {
         String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
 
-        // Use createdAt (timestamp) instead of sequenceNumber
+        // Use createdAt (timestamp) for read receipt
         String timestamp = message.getCreatedAt();
         if (timestamp == null || timestamp.trim().isEmpty()) {
             log.warn("Invalid read receipt: missing timestamp for channelId={}", message.getChannelId());

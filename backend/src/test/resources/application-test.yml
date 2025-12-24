@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: slack-test
+
+  # Use H2 in-memory database for tests
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # Disable Flyway for tests (using ddl-auto=create-drop instead)
+  flyway:
+    enabled: false
+
+  # Mock Redis configuration (tests will use embedded or mock)
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 2000ms
+
+  # Disable OAuth2 for smoke test
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
+
+# Test server port
+server:
+  port: 0  # Random available port
+
+# Disable actuator endpoints for tests
+management:
+  endpoints:
+    enabled-by-default: false

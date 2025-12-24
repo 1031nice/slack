@@ -133,10 +133,10 @@ public class ReadReceiptService {
 
     /**
      * Broadcast read receipt to all channel members
-     * 
+     *
      * @param userId User ID who read the messages
      * @param channelId Channel ID
-     * @param lastReadSequence Last read sequence number
+     * @param lastReadTimestamp Last read timestamp
      */
     private void broadcastReadReceipt(Long userId, Long channelId, String lastReadTimestamp) {
         WebSocketMessage readReceiptMessage = WebSocketMessage.builder()
@@ -160,7 +160,7 @@ public class ReadReceiptService {
      *
      * @param userId User ID
      * @param channelId Channel ID
-     * @param lastReadSequence Last read sequence number
+     * @param lastReadTimestamp Last read timestamp
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)

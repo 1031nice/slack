@@ -28,19 +28,9 @@ public interface ReadReceiptRepository extends JpaRepository<ReadReceipt, Long> 
 
     /**
      * 특정 사용자의 모든 read receipt를 조회합니다.
-     * 
+     *
      * @param userId User ID
      * @return ReadReceipt 목록
      */
     List<ReadReceipt> findByUserId(Long userId);
-
-    /**
-     * 특정 채널에서 특정 시퀀스 번호 이상을 읽은 사용자들을 조회합니다.
-     * 
-     * @param channelId Channel ID
-     * @param sequenceNumber Sequence number
-     * @return ReadReceipt 목록
-     */
-    @Query("SELECT rr FROM ReadReceipt rr WHERE rr.channel.id = :channelId AND rr.lastReadSequence >= :sequenceNumber")
-    List<ReadReceipt> findUsersWhoReadSequence(@Param("channelId") Long channelId, @Param("sequenceNumber") Long sequenceNumber);
 }
