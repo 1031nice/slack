@@ -25,7 +25,8 @@ tutorials. Every architectural decision is documented with its trade-offs, limit
 - **Database**: PostgreSQL (source of truth)
 - **Message Broker**: Redis Pub/Sub (port 6380)
 - **Cache**: Redis
-- **Search**: Elasticsearch (v0.7)
+- **Message Queue**: Kafka (v0.4.1+)
+- **Search**: Elasticsearch (v0.7+)
 - **Monitoring**: Micrometer + Prometheus
 - **Infrastructure**: Docker Compose
 
@@ -33,6 +34,8 @@ tutorials. Every architectural decision is documented with its trade-offs, limit
 
 Event-based architecture with timestamp-based message IDs, client-side ordering, and distributed ID generation.
 See [v0.5 details](#v05---event-based-architecture-migration) below.
+
+**Next**: v0.4.1 - Kafka-based read receipt persistence (addressing scalability issues discovered in v0.4)
 
 ## Version Roadmap
 
@@ -290,11 +293,91 @@ rationale and alternatives considered.
 
 ---
 
-### v0.6 - Thread Support (Next)
+### v0.4.1 - Kafka-Based Read Receipt Persistence (Next)
+
+**Goal**: Fix scalability issues in read receipt persistence from v0.4
+
+**Motivation**:
+Current `@Async` implementation has critical flaws that would cause system failure at scale:
+- Unbounded async processing → thread pool exhaustion
+- Order inversion (newer timestamps overwritten by older)
+- No reconciliation for Redis-DB divergence
+- Silent failures with no retry
+
+**Planned Implementation**:
+
+1. **Kafka Infrastructure**:
+   - Topic: `read-receipts` (32 partitions, 3x replication, 2-day retention)
+   - Producer: Web server publishes after Redis write (~10ms sync ack)
+   - Consumer: Batch processing with configurable rate limits
+
+2. **Consumer Batching**:
+   ```java
+   @KafkaListener(topics = "read-receipts", concurrency = "8")
+   public void consumeReadReceipts(List<ReadReceiptEvent> events) {
+       // Deduplicate: latest timestamp per user+channel
+       Map<UserChannelKey, String> deduplicated = deduplicate(events);
+
+       // Batch upsert with GREATEST() for order resolution
+       batchUpsert(deduplicated);
+
+       // Expected: 500 events → 350 DB writes (30% reduction)
+   }
+   ```
+
+3. **Order Resolution**:
+   ```sql
+   INSERT INTO read_receipts (user_id, channel_id, last_read_timestamp)
+   VALUES (?, ?, ?)
+   ON CONFLICT (user_id, channel_id)
+   DO UPDATE SET
+       last_read_timestamp = GREATEST(
+           read_receipts.last_read_timestamp,
+           EXCLUDED.last_read_timestamp
+       )
+   -- Prevents older timestamp from overwriting newer
+   ```
+
+4. **Reconciliation Job**:
+   - Every 5 minutes: Detect Redis-DB divergence
+   - Fix stale DB records (where Redis is newer)
+   - Metrics: stale count, fixed count, max divergence age
+
+**Migration Strategy**:
+
+- Phase 1: Add Kafka (dual-write to both @Async and Kafka)
+- Phase 2: Switch to Kafka as primary durability path
+- Phase 3: Remove @Async persistence
+- Phase 4: Add reconciliation + monitoring
+
+**Benefits**:
+
+- ✅ Durability: Kafka 2-day retention, 3x replication
+- ✅ Backpressure: Consumer rate configurable (can't overwhelm DB)
+- ✅ Batching: 30-50% write reduction via deduplication
+- ✅ Order guarantee: GREATEST() prevents stale writes
+- ✅ Observability: Kafka consumer lag metrics
+- ✅ Proven at scale: Slack processes 33,000 jobs/sec this way
+
+**Learning Focus**:
+
+- Kafka producer/consumer patterns
+- Batching and deduplication strategies
+- Order guarantees in distributed systems
+- Reconciliation patterns for eventual consistency
+- Real Slack's job queue architecture
+
+**Documentation**: See **[ADR-0007: Kafka-Based Batching for Read Receipt Persistence](./docs/adr/0007-kafka-batching-for-read-receipt-persistence.md)** for full analysis.
+
+**Deliverable**: "Production-grade read receipt persistence handling 10,000+ updates/sec"
+
+---
+
+### v0.6 - Thread Support
 
 **Goal**: Nested conversations with query optimization
 
-**Note**: Threads will use `timestampId` from day one (clean implementation post-migration).
+**Note**: Threads will use `timestampId` from v0.5 (event-based architecture).
 
 **Planned**:
 
@@ -320,7 +403,34 @@ rationale and alternatives considered.
 
 ---
 
-### v0.7 - File Uploads
+### v0.7 - Search & Discoverability
+
+**Goal**: Message search at scale (prioritizing core feature)
+
+**Phase 1: PostgreSQL Full-Text Search**:
+
+- `tsvector` column with GIN index
+- Basic search across user's accessible channels
+- Learning: When is PostgreSQL FTS good enough? (Answer: <1M messages)
+
+**Phase 2: Elasticsearch Migration**:
+
+- Real-time indexing pipeline (Logstash or custom)
+- Search across channels, workspaces
+- Highlighting, fuzzy matching, faceted filters
+- Performance comparison: PostgreSQL vs Elasticsearch at 10M messages
+
+**Learning Focus**:
+
+- When to introduce search infrastructure (cost vs benefit)
+- Data consistency between PostgreSQL and Elasticsearch
+- Index optimization (sharding, replicas)
+
+**Deliverable**: "Full-text search with PostgreSQL vs Elasticsearch comparison"
+
+---
+
+### v0.8 - File Uploads
 
 **Goal**: Share images, documents in channels
 
@@ -340,32 +450,6 @@ rationale and alternatives considered.
 - Async processing (scanning, thumbnails)
 
 **Deliverable**: "Upload and share files in messages"
-
----
-
-### v0.8 - Full-Text Search
-
-**Goal**: Message discoverability at scale
-
-**Phase 1: PostgreSQL Full-Text Search**:
-
-- `tsvector` column with GIN index
-- Learning: When is PostgreSQL FTS good enough? (Answer: <1M messages)
-
-**Phase 2: Elasticsearch Migration**:
-
-- Real-time indexing pipeline (Logstash or custom)
-- Search across channels, workspaces
-- Highlighting, fuzzy matching, faceted filters
-- Performance comparison: PostgreSQL vs Elasticsearch at 10M messages
-
-**Learning Focus**:
-
-- When to introduce search infrastructure (cost vs benefit)
-- Data consistency between PostgreSQL and Elasticsearch
-- Index optimization (sharding, replicas)
-
-**Deliverable**: "Full-text search with PostgreSQL vs Elasticsearch comparison"
 
 ---
 
