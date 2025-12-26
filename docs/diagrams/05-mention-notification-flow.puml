@@ -1,0 +1,87 @@
+@startuml Mention Notification Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title Mention Notification Flow
+
+actor "User A" as UserA
+participant "Client A" as ClientA
+participant "Server" as Server
+database "Database" as DB
+participant "Client B\n(john)" as ClientB
+participant "Client C\n(alice)" as ClientC
+actor "User B\n(john)" as UserB
+actor "User C\n(alice)" as UserC
+
+== Write and Send Message ==
+UserA -> ClientA: Type "@john @alice please join the meeting"
+ClientA -> Server: Send message\n/app/message.send\n{channelId: 1,\ncontent: "@john @alice please..."}
+
+Server -> Server: Validate and process
+Server -> DB: Save message\n{content: "@john @alice please..."}
+DB --> Server: Message saved (id: 123)
+
+== Parse and Create Mentions ==
+Server -> Server: Parse mentions from content\nregex pattern: @([a-zA-Z0-9_-]+)
+
+note over Server
+  Extracted usernames:
+  ["john", "alice"]
+end note
+
+Server -> DB: Find users by name (batch query)\nSELECT * FROM users\nWHERE LOWER(name) IN ('john', 'alice')
+DB --> Server: [User(john, id=2),\n User(alice, id=3)]
+
+Server -> Server: Filter out self-mentions\n(senderId != mentionedUserId)
+
+== Check for Duplicate Mentions ==
+Server -> DB: Check existing mentions\nSELECT * FROM mentions\nWHERE message_id = 123\n  AND mentioned_user_id IN (2, 3)
+DB --> Server: [] (no duplicates)
+
+Server -> DB: Create mention records (batch)\nINSERT mentions\n{messageId: 123, mentionedUserId: 2},\n{messageId: 123, mentionedUserId: 3}
+DB --> Server: [Mention(id=1), Mention(id=2)]
+
+== Send WebSocket Notifications ==
+loop for each mention
+    Server -> Server: Prepare notification
+
+    Server -> ClientB: Send to private queue\n/queue/mentions.2\n{\n  type: MENTION,\n  messageId: 123,\n  channelId: 1,\n  content: "@john @alice please...",\n  senderName: "User A"\n}
+
+    ClientB -> ClientB: Show browser notification
+    ClientB -> UserB: 🔔 "User A mentioned you"
+
+    Server -> ClientC: Send to private queue\n/queue/mentions.3\n{\n  type: MENTION,\n  messageId: 123,\n  channelId: 1,\n  content: "@john @alice please...",\n  senderName: "User A"\n}
+
+    ClientC -> ClientC: Show browser notification
+    ClientC -> UserC: 🔔 "User A mentioned you"
+end
+
+== Mark Mention as Read (Later) ==
+UserB -> ClientB: Click on mention notification
+ClientB -> Server: Mark as read\nPUT /api/mentions/1/read
+Server -> DB: Update mention\nUPDATE mentions\nSET is_read = true\nWHERE id = 1
+DB --> Server: Updated
+Server --> ClientB: OK
+
+== View Unread Mentions ==
+UserB -> ClientB: Open mentions list
+ClientB -> Server: Get unread mentions\nGET /api/mentions/unread
+Server -> DB: Query unread mentions with message details\nSELECT m.*, msg.*\nFROM mentions m\nJOIN messages msg ON m.message_id = msg.id\nWHERE m.mentioned_user_id = 2\n  AND m.is_read = false\nORDER BY m.created_at DESC
+DB --> Server: [Mention with message details, ...]
+Server --> ClientB: [{messageId, channelId,\ncontent, senderName, createdAt}, ...]
+ClientB -> UserB: Display unread mentions
+
+note right of Server
+  **Batch Optimization**
+  - N mentions → 1 SELECT (users)
+  - N mentions → 1 SELECT (duplicates)
+  - N mentions → 1 INSERT (batch)
+
+  **Idempotency**
+  - UNIQUE(message_id, mentioned_user_id)
+  - Prevents duplicate mentions
+end note
+
+@enduml

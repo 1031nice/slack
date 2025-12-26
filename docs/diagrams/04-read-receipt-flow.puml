@@ -1,0 +1,92 @@
+@startuml Read Receipt Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title Read Receipt & Unread Count Flow (Hybrid Redis + DB)
+
+actor "User A" as UserA
+participant "Client A" as ClientA
+participant "Server" as Server
+database "Redis\n(Cache)" as Redis
+database "PostgreSQL\n(Source of Truth)" as DB
+participant "Async Task\nExecutor" as AsyncPool
+participant "Client B" as ClientB
+actor "User B" as UserB
+
+== Receive New Message ==
+Server -> ClientA: New message\n{messageId: 123, timestampId: "...456.001"}
+ClientA -> UserA: Display message (unread)
+
+== User Reads Message ==
+UserA -> ClientA: View channel (read messages)
+ClientA -> Server: Mark as read\n/app/message.read\n{\n  type: READ,\n  channelId: 1,\n  createdAt: "...456.001"\n}
+
+Server -> Server: Extract authenticated user
+Server -> Server: Validate channel access
+
+== Step 1: Update Redis Cache Immediately (Fast Path) ==
+Server -> Redis: Update read receipt\nSET read_receipt:{userId}:{channelId}\n"...456.001"
+Redis --> Server: OK
+
+note over Redis
+  **Real-time Cache**
+  - O(1) update
+  - Immediate reflection
+  - May be lost on server restart
+end note
+
+== Step 2: Broadcast via WebSocket ==
+Server -> ClientA: Notify read status\n/topic/channel.{channelId}\n{type: READ, userId, channelId,\ncreatedAt: "...456.001"}
+Server -> ClientB: Notify read status\n/topic/channel.{channelId}\n{type: READ, userId, channelId,\ncreatedAt: "...456.001"}
+
+ClientB -> UserB: Show "User A read messages"
+
+== Step 3: Persist to Database Asynchronously ==
+Server -> AsyncPool: Schedule async persistence\npersistToDatabase(userId, channelId, timestamp)
+
+note over AsyncPool
+  **Eventual Consistency**
+  - Non-blocking (user doesn't wait)
+  - Separate transaction
+  - Expected lag: <100ms
+end note
+
+AsyncPool -> DB: Insert or update read receipt\nINSERT/UPDATE read_receipts\n{userId, channelId, lastReadTimestamp}
+DB --> AsyncPool: Saved
+
+== Clear Unread Count ==
+Server -> Server: Clear unread count for user
+Server -> Redis: Delete unread set\nDEL unread:{userId}:{channelId}
+Redis --> Server: OK
+
+== Page Refresh (Cache Miss Scenario) ==
+UserA -> ClientA: Refresh page
+ClientA -> Server: Get read receipt\nGET /api/channels/1/read-receipt
+
+Server -> Server: Try to get from cache first
+Server -> Redis: Fetch read receipt\nGET read_receipt:{userId}:{channelId}
+
+alt Redis Cache Hit
+    Redis --> Server: "...456.001"
+    Server --> ClientA: {lastReadTimestamp: "...456.001"}
+else Redis Cache Miss (e.g., server restart)
+    Redis --> Server: null
+    Server -> DB: Query from database\nSELECT * FROM read_receipts\nWHERE user_id = ?\n  AND channel_id = ?
+    DB --> Server: ReadReceipt("...456.001")
+
+    Server -> Redis: Warm cache\nSET read_receipt:{userId}:{channelId}\n"...456.001"
+    Redis --> Server: OK
+
+    Server --> ClientA: {lastReadTimestamp: "...456.001"}
+end
+
+note right of Server
+  **Hybrid Approach Benefits**
+  - Redis: Fast real-time updates
+  - DB: Recovery after restart
+  - Async: No user-facing latency
+end note
+
+@enduml

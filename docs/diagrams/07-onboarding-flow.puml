@@ -1,0 +1,107 @@
+@startuml Onboarding Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title User Onboarding Flow (Service-Specific Data Collection)
+
+actor "New User" as User
+participant "Browser" as Client
+participant "Backend\nServer" as Backend
+participant "OAuth2\nServer" as OAuth
+database "Application\nDatabase" as DB
+
+== OAuth2 Authentication (Standard Flow) ==
+User -> Client: Click login
+Client -> OAuth: Request authorization
+OAuth --> Client: Redirect with code
+Client -> Backend: Exchange code for token
+
+Backend -> OAuth: Request access token
+OAuth --> Backend: {access_token (JWT)}
+
+Backend -> Backend: Extract user info from JWT\n{sub, email, name}
+
+== Check if User Needs Onboarding ==
+
+Backend -> DB: SELECT * FROM users\nWHERE auth_user_id = JWT.sub
+alt User exists and onboarding complete
+    DB --> Backend: User {onboardingComplete: true}
+    Backend --> Client: {accessToken, user, needsOnboarding: false}
+    Client -> User: Redirect to main app /channels
+else User not found OR onboarding incomplete
+    DB --> Backend: null OR User {onboardingComplete: false}
+
+    alt User doesn't exist (First time login)
+        Backend -> DB: INSERT minimal user record\n{authUserId: JWT.sub,\nemail: JWT.email,\nonboardingComplete: false}
+        DB --> Backend: User created
+    end
+
+    Backend --> Client: {accessToken, user, needsOnboarding: true}
+
+    note right of Client #lightyellow
+      **Frontend checks needsOnboarding flag**
+      if (needsOnboarding) {
+        redirect('/onboarding')
+      }
+    end note
+
+    Client -> User: Show onboarding form
+end
+
+== Collect Service-Specific Information ==
+
+note over User, DB #lightblue
+  **Slack-Specific Data Examples:**
+  - Display name (may differ from OAuth name)
+  - Profile photo
+  - Timezone
+  - Status message
+  - Job title
+  - Phone number
+  - Notification preferences
+end note
+
+User -> Client: Fill onboarding form\n{displayName, avatar, timezone, ...}
+Client -> Backend: POST /api/users/complete-onboarding\n{displayName, avatar, timezone, ...}
+
+Backend -> Backend: Validate input
+Backend -> DB: UPDATE users\nSET display_name = ?,\n    avatar_url = ?,\n    timezone = ?,\n    onboarding_complete = true\nWHERE id = ?
+
+DB --> Backend: Updated
+
+Backend --> Client: {user, onboardingComplete: true}
+Client -> User: Redirect to main app /channels
+
+== Subsequent Logins (Onboarding Already Complete) ==
+
+User -> Client: Login again (later)
+Client -> OAuth: OAuth2 flow...
+OAuth --> Client: JWT
+Client -> Backend: Exchange token
+
+Backend -> DB: SELECT * FROM users\nWHERE auth_user_id = JWT.sub
+DB --> Backend: User {onboardingComplete: true}
+
+Backend --> Client: {accessToken, user, needsOnboarding: false}
+Client -> User: Redirect directly to /channels\n(skip onboarding)
+
+note right of Client #lightgreen
+  **User data stored in two places:**
+
+  **OAuth2 Server (Auth only):**
+  - sub (authUserId)
+  - email
+  - email_verified
+
+  **Application DB (Service-specific):**
+  - authUserId (links to OAuth2)
+  - displayName
+  - avatarUrl
+  - timezone
+  - statusMessage
+  - onboardingComplete
+end note
+
+@enduml

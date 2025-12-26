@@ -1,0 +1,157 @@
+@startuml System Architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+
+title Slack Clone - System Architecture (v0.5)
+
+cloud "Internet" {
+    actor "User" as User
+}
+
+package "Frontend" {
+    [Next.js 14\nApp Router] as Frontend
+    note right of Frontend
+      - TypeScript
+      - WebSocket Client (STOMP)
+      - Client-side ordering (2s buffer)
+      - Set<timestampId> deduplication
+    end note
+}
+
+package "Load Balancer" {
+    [Nginx] as LB
+    note right of LB
+      - Sticky sessions (ip_hash)
+      - Port: 8888
+      - Upstream: 3 servers
+    end note
+}
+
+package "Backend Servers" {
+    package "Server 1 (Port 9000)" {
+        [WebSocket\nHandler] as WS1
+        [REST API\nEndpoints] as REST1
+        [Business\nLogic] as BL1
+        [Redis\nPublisher] as PUB1
+        [Redis\nSubscriber] as SUB1
+    }
+
+    package "Server 2 (Port 9001)" {
+        [WebSocket\nHandler] as WS2
+        [REST API\nEndpoints] as REST2
+        [Business\nLogic] as BL2
+        [Redis\nPublisher] as PUB2
+        [Redis\nSubscriber] as SUB2
+    }
+
+    package "Server 3 (Port 9002)" {
+        [WebSocket\nHandler] as WS3
+        [REST API\nEndpoints] as REST3
+        [Business\nLogic] as BL3
+        [Redis\nPublisher] as PUB3
+        [Redis\nSubscriber] as SUB3
+    }
+}
+
+package "External Services" {
+    [OAuth2\nAuth Server] as OAuth
+    note right of OAuth
+      - Port: 8081
+      - JWT issuance
+      - JWK Set provider
+    end note
+}
+
+database "PostgreSQL" as DB {
+    folder "Tables" {
+        [users]
+        [workspaces]
+        [channels]
+        [messages]
+        [mentions]
+        [read_receipts]
+        [channel_members]
+    }
+    note right of DB
+      - Source of Truth
+      - ACID guarantees
+      - Flyway migrations
+    end note
+}
+
+database "Redis (Port 6380)" as Redis {
+    folder "Pub/Sub" {
+        [slack:websocket:messages] as RedisTopic
+    }
+
+    folder "Cache" {
+        [unread:{userId}:{channelId}] as UnreadCache
+        [read_receipt:{userId}:{channelId}] as ReadCache
+    }
+
+    note right of Redis
+      - Pub/Sub: Real-time broadcast
+      - Cache: Unread count, Read receipts
+      - No persistence needed
+    end note
+}
+
+database "Prometheus" as Prom {
+    note right of Prom
+      - Metrics collection
+      - Port: 9090
+      - Grafana integration ready
+    end note
+}
+
+' Connections
+User --> Frontend: HTTPS
+Frontend --> LB: WebSocket /ws\nREST API
+
+LB --> WS1
+LB --> WS2
+LB --> WS3
+
+Frontend --> OAuth: OAuth2 Login
+
+WS1 --> OAuth: Validate JWT (JWK)
+WS2 --> OAuth: Validate JWT (JWK)
+WS3 --> OAuth: Validate JWT (JWK)
+
+BL1 --> DB: Read/Write
+BL2 --> DB: Read/Write
+BL3 --> DB: Read/Write
+
+PUB1 --> RedisTopic: PUBLISH
+PUB2 --> RedisTopic: PUBLISH
+PUB3 --> RedisTopic: PUBLISH
+
+RedisTopic --> SUB1: SUBSCRIBE
+RedisTopic --> SUB2: SUBSCRIBE
+RedisTopic --> SUB3: SUBSCRIBE
+
+BL1 --> UnreadCache: ZADD/ZCARD
+BL1 --> ReadCache: SET/GET
+BL2 --> UnreadCache: ZADD/ZCARD
+BL2 --> ReadCache: SET/GET
+BL3 --> UnreadCache: ZADD/ZCARD
+BL3 --> ReadCache: SET/GET
+
+WS1 --> Prom: /actuator/prometheus
+WS2 --> Prom: /actuator/prometheus
+WS3 --> Prom: /actuator/prometheus
+
+legend right
+  **v0.5 Key Features**
+  ✅ Event-based architecture
+  ✅ Timestamp ID (distributed generation)
+  ✅ Client-side ordering
+  ✅ Redis Pub/Sub (single topic)
+  ✅ Hybrid Redis+DB (eventual consistency)
+
+  **Next Versions**
+  📅 v0.6: Thread support
+  📅 v0.9: Channel-specific Redis topics
+endlegend
+
+@enduml

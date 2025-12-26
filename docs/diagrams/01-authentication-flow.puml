@@ -1,0 +1,74 @@
+@startuml Authentication Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title OAuth2 Authentication & JWT Validation Flow
+
+actor "Developer" as Dev
+actor "User" as User
+participant "Browser" as Client
+participant "Backend\nServer" as Backend
+participant "OAuth2\nServer" as OAuth
+database "Database" as DB
+
+== Prerequisites: Register OAuth2 Client (One-time Setup) ==
+
+note over Dev, OAuth #lightblue
+  This step happens BEFORE any user authentication
+  Typically done during application setup
+end note
+
+Dev -> OAuth: Register new OAuth2 client application\n{name, redirect_uris, scopes}
+OAuth -> OAuth: Generate credentials
+OAuth --> Dev: {client_id, client_secret}
+
+Dev -> Backend: Configure application settings\napplication.yml:\n  oauth2.client-id: {client_id}\n  oauth2.client-secret: {client_secret}
+
+note right of Backend #lightgreen
+  **Client Credentials Stored**
+  - client_id: Public identifier
+  - client_secret: Private key (never exposed to client)
+  - Used for server-to-server authentication
+end note
+
+...
+note over Dev, DB #lightyellow
+  Setup complete. Users can now authenticate.
+end note
+...
+
+== OAuth2 Authentication ==
+User -> Client: Click login
+Client -> OAuth: Request authorization
+OAuth --> Client: Redirect with authorization code
+Client -> Backend: Exchange code for token\n{code, redirectUri}
+
+Backend -> OAuth: Request access token\n(Basic Auth: client_id:secret)\n{code, redirect_uri, grant_type}
+OAuth --> Backend: {access_token, token_type, expires_in}
+
+Backend -> OAuth: Fetch public key for JWT validation\n(JWK Set)
+OAuth --> Backend: Public keys
+
+Backend -> Backend: Validate JWT signature
+Backend -> Backend: Extract user info from JWT\n{sub, email, name}
+
+Backend -> DB: Find or create user\n(authUserId = JWT.sub)
+DB --> Backend: User entity
+
+Backend --> Client: {access_token}
+Client -> Client: Store token\n(localStorage)
+
+== WebSocket Connection with JWT ==
+Client -> Backend: Connect WebSocket /ws\nAuthorization: Bearer {jwt_token}
+Backend -> Backend: Validate JWT
+Backend -> Backend: Load authenticated user
+Backend --> Client: Connection established
+
+note right of Backend
+  All WebSocket messages are executed
+  in authenticated user context
+end note
+
+@enduml

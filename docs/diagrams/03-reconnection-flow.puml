@@ -1,0 +1,77 @@
+@startuml Reconnection Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title Reconnection & Missed Message Recovery Flow
+
+actor "User" as User
+participant "Client" as Client
+participant "Server" as Server
+database "Database" as DB
+
+== Normal Message Reception ==
+Server -> Client: MESSAGE {timestampId: "...456.001"}
+Client -> Client: seenTimestampIds.add("...456.001")\nlastReceivedTimestamp = "...456.001"
+
+Server -> Client: MESSAGE {timestampId: "...456.002"}
+Client -> Client: seenTimestampIds.add("...456.002")\nlastReceivedTimestamp = "...456.002"
+
+== WebSocket Disconnection ==
+Client -[#red]x Server: <font color=red>Connection lost</font>
+note right of Client
+  Causes: Network issue,
+  Server restart, Timeout, etc.
+end note
+
+... Messages occur on server ...
+Server -> Server: Message "...456.003" created\n(Client didn't receive)
+Server -> Server: Message "...456.004" created\n(Client didn't receive)
+
+== Reconnection ==
+Client -> Client: Detect disconnection
+Client -> Server: Reconnect WebSocket /ws
+Server --> Client: Connection established
+
+Client -> Server: Subscribe to channel\n/topic/channel.{channelId}
+Server --> Client: Subscribed
+
+== Recover Missed Messages ==
+Client -> Server: Request resend\n/app/message.resend\n{\n  channelId: 1,\n  createdAt: "...456.002"\n}
+
+note right of Client
+  Send last received timestampId
+end note
+
+Server -> Server: Extract channel and timestamp
+Server -> Server: Validate user has channel access
+
+Server -> DB: Query messages after timestamp\nSELECT * FROM messages\nWHERE channel_id = ?\n  AND timestamp_id > ?\nORDER BY timestamp_id ASC
+
+note over DB
+  **Timestamp-Based Recovery**
+  - No sequence number needed
+  - Works in distributed environment
+  - Chronological ordering guaranteed
+end note
+
+DB --> Server: [Message("...456.003"),\n Message("...456.004")]
+
+Server -> Client: Send to private queue\n/queue/resend.{username}\nMESSAGE {timestampId: "...456.003"}
+Client -> Client: if (!seenTimestampIds.has("...456.003"))\n  Add to Set\n  Add to buffer
+
+Server -> Client: Send to private queue\n/queue/resend.{username}\nMESSAGE {timestampId: "...456.004"}
+Client -> Client: if (!seenTimestampIds.has("...456.004"))\n  Add to Set\n  Add to buffer
+
+Client -> Client: Sort buffer and display
+Client -> User: Show recovered messages
+
+note right of Client
+  **Idempotency Guarantee**
+  - Set-based deduplication
+  - Safe to receive same message multiple times
+  - At-least-once delivery
+end note
+
+@enduml

@@ -1,0 +1,84 @@
+@startuml Message Send Flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+title Message Send Flow (Event-Based Architecture)
+
+actor "User A" as UserA
+participant "Client A\n(WebSocket)" as ClientA
+participant "Server 1" as Server1
+database "Database" as DB
+database "Redis\nPub/Sub" as Redis
+participant "Server 2" as Server2
+participant "Server 3" as Server3
+participant "Client B\n(WebSocket)" as ClientB
+actor "User B" as UserB
+
+UserA -> ClientA: Type and send message
+ClientA -> Server1: Send message via WebSocket\n/app/message.send\n{channelId, content}
+
+== Create and Persist Message ==
+Server1 -> Server1: Extract authenticated user
+Server1 -> Server1: Validate channel access
+
+Server1 -> Server1: Generate unique timestamp ID\ntimestamp_μs + sequence\n(no coordination needed)
+
+note right of Server1
+  **Timestamp ID Format**
+  unix_timestamp_μs.sequence
+
+  Example: "1735046400123456.001"
+
+  ✓ Chronologically sortable
+  ✓ No Redis INCR bottleneck
+  ✓ Distributed ID generation
+end note
+
+Server1 -> DB: Persist message\n{channelId, userId, content,\ntimestampId, createdAt}
+DB --> Server1: Message saved (with ID)
+
+== Update Unread Counts & Handle Mentions ==
+Server1 -> Server1: Get all channel members
+Server1 -> Redis: Increment unread count\nfor each member (except sender)\nZADD unread:{userId}:{channelId}\n{timestamp} {messageId}
+
+Server1 -> Server1: Parse @mentions from content\nregex: @([a-zA-Z0-9_-]+)
+
+alt Message contains @mentions
+    Server1 -> DB: Create mention records\n{messageId, mentionedUserId}
+    Server1 -> ClientB: Send mention notification\n/queue/mentions.{userId}\n{type: MENTION, ...}
+end
+
+== Broadcast to All Servers via Redis ==
+Server1 -> Server1: Prepare broadcast message
+Server1 -> Redis: Publish to topic\n"slack:websocket:messages"\n{type: MESSAGE, channelId,\nmessageId, timestampId, content, ...}
+
+note over Redis
+  **Single Redis Topic (v0.5)**
+  Current: All servers receive all messages
+  Future (v0.9): Channel-specific topics
+end note
+
+Redis --> Server1: (subscribed)
+Redis --> Server2: (subscribed)
+Redis --> Server3: (subscribed)
+
+== Each Server Sends to Local WebSocket Clients ==
+Server1 -> Server1: Receive from Redis subscription
+Server1 -> ClientA: Send to subscribers\n/topic/channel.{channelId}\n{WebSocketMessage}
+
+Server2 -> Server2: Receive from Redis subscription
+Server2 -> ClientB: Send to subscribers\n/topic/channel.{channelId}\n{WebSocketMessage}
+
+ClientB -> ClientB: Add to seenTimestampIds Set\nAdd to 2-second buffer\nSort by timestamp
+ClientB -> UserB: Display message
+
+note right of ClientB
+  **Client-Side Ordering**
+  - Deduplicate via Set<timestampId>
+  - 2-second buffer for late arrivals
+  - Sort by timestamp (not sequence)
+end note
+
+@enduml
