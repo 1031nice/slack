@@ -23,6 +23,9 @@ Each ADR follows this structure:
 | [0002](./0002-eventual-consistency-for-read-status.md) | Eventual Consistency for Read Status | Accepted | 2024-12-13 |
 | [0003](./0003-redis-zset-for-unread-counts.md) | Use Redis Sorted Set (ZSET) for Unread Count Tracking | Accepted | 2024-12-14 |
 | [0004](./0004-redis-pipeline-vs-lua-script.md) | Redis Pipeline vs Lua Script for Batch Operations | Accepted | 2024-12-14 |
+| [0005](./0005-explicit-authorization-over-preauthorize.md) | Explicit Authorization Over @PreAuthorize | Accepted | 2024-12-15 |
+| [0006](./0006-event-based-architecture-for-distributed-messaging.md) | Event-Based Architecture for Distributed Messaging | Proposed | 2025-12-20 |
+| [0007](./0007-kafka-batching-for-read-receipt-persistence.md) | Kafka-Based Batching for Read Receipt Persistence | Proposed | 2025-12-26 |
 
 ## Creating a New ADR
 

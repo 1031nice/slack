@@ -151,11 +151,13 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
 4. **Read Receipts**:
     - Real-time via WebSocket: `{type: 'READ', userId, channelId, lastReadSequence}`
     - Update Redis instantly, async sync to PostgreSQL
+    - **Migration planned**: Move to Kafka-based batching (see ADR-0007)
 
 5. **Eventual Consistency**:
     - Redis is cache (fast, may be lost)
     - PostgreSQL is source of truth (slower, durable)
-    - Immediate async write to PostgreSQL (@Async, non-blocking)
+    - **Current**: Immediate async write to PostgreSQL (@Async, non-blocking)
+    - **Planned**: Kafka + consumer batching for scalability (v0.4.1)
     - Crash recovery: Restore from PostgreSQL
 
 **Trade-off Analysis**:
@@ -170,14 +172,33 @@ For detailed architectural decision, trade-offs, and Redis vs Kafka comparison, 
     - Immediate async write to PostgreSQL (durable, non-blocking)
     - Expected lag: <100ms (thread pool + DB write)
 
+**Known Issues & Planned Improvements**:
+
+**Current Implementation Problems** (discovered post-v0.4):
+- ❌ **Unbounded async processing**: `@Async` without backpressure → thread pool exhaustion at scale
+- ❌ **Order inversion**: Newer timestamps can be overwritten by older ones in DB
+- ❌ **No reconciliation**: Redis-DB divergence not detected/fixed
+- ❌ **Silent failures**: DB write failures just logged, no retry
+
+**Planned Migration (v0.4.1)**: Kafka-based batching
+- ✅ Durable buffering with Kafka (2-day retention, 3x replication)
+- ✅ Consumer batching with deduplication (30-50% write reduction)
+- ✅ Order resolution via `GREATEST()` SQL function
+- ✅ Reconciliation job (5-minute intervals)
+- ✅ Proven at Slack scale (33,000 jobs/sec)
+
+See **[ADR-0007: Kafka-Based Batching for Read Receipt Persistence](./docs/adr/0007-kafka-batching-for-read-receipt-persistence.md)** for detailed analysis of current issues and Kafka-based solution.
+
 **Learning Focus**:
 
 - Eventual consistency trade-offs
 - Redis data structures (Sorted Sets, Lists)
-- Batch write optimizations
+- **High-throughput async processing** (Kafka consumer batching)
+- **Order guarantees in distributed systems** (timestamp comparison, SQL GREATEST)
+- **Reconciliation patterns** (detecting and fixing divergence)
 - Consistency lag measurement
 
-**Deliverable**: "Unread counts and @mentions with measured consistency characteristics"
+**Deliverable**: "Unread counts and @mentions with production-grade persistence layer"
 
 ---
 
