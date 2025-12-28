@@ -33,7 +33,10 @@ dependencies {
     
     // Redis for Pub/Sub messaging
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    
+
+    // Kafka for durable event streaming (v0.4.1)
+    implementation 'org.springframework.kafka:spring-kafka'
+
     runtimeOnly 'org.postgresql:postgresql'
     
     implementation 'org.flywaydb:flyway-core:10.10.0'

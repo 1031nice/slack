@@ -37,6 +37,30 @@ spring:
       port: 6380
       timeout: 2000ms
 
+  # Kafka configuration for read receipt persistence (v0.4.1)
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: 1  # Leader ack (balance between latency and durability)
+      retries: 3
+      properties:
+        linger.ms: 10  # Wait up to 10ms to batch records
+        compression.type: snappy  # Compress messages for efficiency
+    consumer:
+      group-id: read-receipt-persister
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      max-poll-records: 500  # Batch size for consumer
+      properties:
+        spring.json.trusted.packages: com.slack.dto.events
+        # Enable idempotent consumer (exactly-once processing)
+        enable.auto.commit: false  # Manual commit after successful DB write
+    listener:
+      ack-mode: manual  # Manual ack for better control
+
 springdoc:
   api-docs:
     path: /api-docs
