@@ -277,31 +277,74 @@ public void flushBatch() {
    }
    ```
 
-4. **Reconciliation Job** (scheduled):
+4. **DLT Consumer** (for failed events):
    ```java
-   @Scheduled(cron = "0 */5 * * * *")  // Every 5 minutes
-   public void reconcileReadReceipts() {
-       // Find records where DB is stale (updated_at > 10 min ago)
-       List<ReadReceipt> staleRecords = readReceiptRepository
-           .findByUpdatedAtBefore(LocalDateTime.now().minusMinutes(10));
+   @KafkaListener(topics = "read-receipts-dlt")
+   public void handleFailedReadReceipt(ReadReceiptEvent event) {
+       log.warn("Reconciling failed event from DLT: userId={}, channelId={}",
+           event.getUserId(), event.getChannelId());
 
-       int fixed = 0;
-       for (ReadReceipt dbRecord : staleRecords) {
-           String redisValue = getReadReceipt(dbRecord.getUserId(), dbRecord.getChannelId());
+       try {
+           // Get latest value from Redis (source of truth)
+           String redisValue = redisTemplate.opsForValue()
+               .get(buildKey(event.getUserId(), event.getChannelId()));
 
-           if (redisValue != null && redisValue.compareTo(dbRecord.getLastReadTimestamp()) > 0) {
-               // Redis is newer → update DB
-               dbRecord.updateLastReadTimestamp(redisValue);
-               readReceiptRepository.save(dbRecord);
-               fixed++;
+           if (redisValue == null) {
+               // Redis evicted, use event value
+               redisValue = event.getLastReadTimestamp();
+           }
+
+           // Upsert to DB with GREATEST() for order resolution
+           String sql = """
+               INSERT INTO read_receipts (user_id, channel_id, last_read_timestamp, updated_at)
+               VALUES (?, ?, ?, NOW())
+               ON CONFLICT (user_id, channel_id)
+               DO UPDATE SET
+                   last_read_timestamp = GREATEST(
+                       read_receipts.last_read_timestamp,
+                       EXCLUDED.last_read_timestamp
+                   ),
+                   updated_at = NOW()
+           """;
+
+           jdbcTemplate.update(sql, event.getUserId(), event.getChannelId(), redisValue);
+           meterRegistry.counter("read_receipts.dlt.reconciled").increment();
+
+       } catch (Exception e) {
+           log.error("DLT reconciliation failed, needs manual intervention", e);
+           meterRegistry.counter("read_receipts.dlt.failed").increment();
+           alertService.critical("DLT reconciliation failed", e);
+       }
+   }
+   ```
+
+5. **Kafka Producer Fallback** (for producer failures):
+   ```java
+   private final Queue<ReadReceiptEvent> fallbackQueue = new ConcurrentLinkedQueue<>();
+
+   private void publishToKafka(Long userId, Long channelId, String timestamp) {
+       try {
+           ReadReceiptEvent event = new ReadReceiptEvent(userId, channelId, timestamp);
+           kafkaTemplate.send("read-receipts", event).get(100, TimeUnit.MILLISECONDS);
+       } catch (Exception e) {
+           log.error("Kafka publish failed, using fallback queue", e);
+           fallbackQueue.offer(event);
+           meterRegistry.counter("read_receipts.kafka.fallback").increment();
+       }
+   }
+
+   @Scheduled(fixedDelay = 5000)  // Retry every 5 seconds
+   public void retryFallbackQueue() {
+       ReadReceiptEvent event;
+       while ((event = fallbackQueue.poll()) != null) {
+           try {
+               kafkaTemplate.send("read-receipts", event).get();
+               meterRegistry.counter("read_receipts.fallback.success").increment();
+           } catch (Exception e) {
+               fallbackQueue.offer(event);  // Re-queue for retry
+               break;
            }
        }
-
-       log.info("Reconciliation: fixed {} stale records out of {}", fixed, staleRecords.size());
-
-       // Metrics
-       meterRegistry.gauge("read_receipts.reconciliation.stale_count", staleRecords.size());
-       meterRegistry.counter("read_receipts.reconciliation.fixed_count", fixed);
    }
    ```
 
@@ -446,21 +489,14 @@ Kafka provides built-in metrics:
 - Strong consistency required (must be in DB immediately) → Synchronous write
 - Can't tolerate latency (10-50ms) → Probably not a real requirement for read receipts
 
-### Migration Path
+### Implementation Approach
 
-**Phase 1: Add Kafka (dual-write)**
-- Web server writes to both @Async (old) and Kafka (new)
-- Consumer writes to DB (shadow mode, no client impact)
-- Compare results: @Async vs Kafka consumer
-
-**Phase 2: Switch to Kafka**
-- Remove @Async persistence
-- Kafka becomes primary durability path
-- Monitor Kafka lag, consumer throughput
-
-**Phase 3: Add Reconciliation**
-- Scheduled job to detect Redis-DB divergence
-- Metrics + alerting
+**Single-phase migration** (no dual-write needed for learning project):
+1. Remove @Async persistence
+2. Kafka becomes sole durability mechanism
+3. DLT consumer handles failed events automatically
+4. Fallback queue handles Kafka producer failures
+5. Monitor metrics for system health
 
 ---
 
@@ -562,10 +598,12 @@ public void handleDlt(ReadReceiptEvent event) {
 - `db.batch.size`: Average batch size
 - `db.batch.duration`: Time to process batch
 
-**Consistency Metrics:**
-- `reconciliation.stale_count`: Records where DB lags Redis
-- `reconciliation.fixed_count`: Records corrected
-- `redis_db.divergence.max_age`: Oldest inconsistency
+**Reliability Metrics:**
+- `read_receipts.dlt.reconciled`: DLT events successfully recovered
+- `read_receipts.dlt.failed`: DLT events that need manual intervention
+- `read_receipts.kafka.fallback`: Producer failures using fallback queue
+- `read_receipts.fallback.success`: Fallback queue retry successes
+- `read_receipts.fallback.queue_size`: Current fallback queue depth
 
 **Business Metrics:**
 - `read_receipts.updates_per_second`: Read receipt update rate
@@ -584,7 +622,8 @@ public void handleDlt(ReadReceiptEvent event) {
 ✅ **Batching efficiency**: 30-50% reduction in DB writes
 ✅ **Observability**: Kafka metrics show system health
 ✅ **Proven pattern**: Identical to Slack's production architecture
-✅ **Reconciliation**: Detects and fixes inconsistencies
+✅ **DLT reconciliation**: Event-driven recovery, no full table scans
+✅ **Producer fallback**: Kafka failures don't lose data
 
 ### Negative
 
@@ -663,72 +702,24 @@ CREATE TABLE read_receipt_queue (
 
 ## Success Criteria
 
-**v0.4 is successful if:**
+**v0.4.2 is successful if:**
 
 - ✅ Kafka producer throughput: >10,000 events/sec
 - ✅ Consumer lag: <5 seconds at P95
 - ✅ DB batch efficiency: >30% deduplication rate
 - ✅ Order correctness: Zero stale writes (older timestamp overwrites newer)
 - ✅ Durability: Zero data loss on Redis/server crash
-- ✅ Reconciliation: Detect divergence within 5 minutes
+- ✅ DLT reconciliation: All failed events automatically recovered
+- ✅ Fallback queue: Kafka producer failures handled gracefully
 
 **Measured metrics:**
 
 - Kafka consumer lag distribution (P50, P95, P99)
 - DB batch size (avg, max)
 - Deduplication ratio (duplicates / total events)
-- Reconciliation: stale records found per run
-- Redis-DB consistency: max age of divergence
-
----
-
-## Implementation Phases
-
-### Phase 1: Kafka Infrastructure (Week 1)
-
-**Goal**: Set up Kafka cluster
-
-**Scope:**
-- Docker Compose: Kafka + Zookeeper (local dev)
-- Kubernetes: Strimzi Kafka Operator (production)
-- Topics: `read-receipts` (32 partitions, 3x replication)
-- Monitoring: Kafka Exporter + Grafana dashboards
-
-**Deliverable**: Working Kafka cluster with basic monitoring
-
-### Phase 2: Dual-Write Implementation (Week 2)
-
-**Goal**: Publish to Kafka without changing behavior
-
-**Scope:**
-- Add Kafka producer to `ReadReceiptService`
-- Keep existing `@Async` persistence (dual-write)
-- Consumer writes to DB (shadow mode)
-- Compare: `@Async` vs Kafka consumer results
-
-**Deliverable**: Kafka consumer processing events, verified against @Async
-
-### Phase 3: Switch to Kafka (Week 3)
-
-**Goal**: Make Kafka primary durability path
-
-**Scope:**
-- Remove `@Async persistToDatabase()` method
-- Kafka write becomes only durability mechanism
-- Monitor consumer lag, throughput
-
-**Deliverable**: Production traffic on Kafka, @Async removed
-
-### Phase 4: Reconciliation + Alerting (Week 4)
-
-**Goal**: Detect and fix inconsistencies
-
-**Scope:**
-- Scheduled reconciliation job (every 5 min)
-- Metrics: stale count, fixed count, max divergence age
-- Alerts: consumer lag >10s, reconciliation fixed >100 records
-
-**Deliverable**: Full observability + auto-healing
+- DLT events processed per hour (should be near zero in steady state)
+- Fallback queue size (should be zero when Kafka is healthy)
+- Producer failure rate (<0.01% acceptable)
 
 ---
 

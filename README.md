@@ -30,13 +30,13 @@ tutorials. Every architectural decision is documented with its trade-offs, limit
 - **Monitoring**: Micrometer + Prometheus
 - **Infrastructure**: Docker Compose
 
-## Current Status: v0.4.1 ✅ (Phase 1)
+## Current Status: v0.4.2 🚧 (In Progress)
 
-Kafka-based read receipt persistence with batching, deduplication, and reconciliation.
-See [v0.4.1 details](#v041---kafka-based-read-receipt-persistence-) below.
+Improved Kafka-based read receipt persistence with DLT reconciliation and producer fallback.
+See [v0.4.2 details](#v042---improved-kafka-based-read-receipt-persistence-) below.
 
 **Latest**: v0.5 ✅ - Event-based architecture with distributed ID generation
-**Next**: v0.4.1 Phase 2 - Validate and remove @Async fallback, then proceed to v0.6 (Thread Support)
+**Next**: v0.6 (Thread Support) after v0.4.2 completion
 
 ## Version Roadmap
 
@@ -298,57 +298,56 @@ rationale and alternatives considered.
 
 **Goal**: Fix scalability issues in read receipt persistence from v0.4
 
-**Motivation**:
-Current `@Async` implementation has critical flaws that would cause system failure at scale:
-- Unbounded async processing → thread pool exhaustion
-- Order inversion (newer timestamps overwritten by older)
-- No reconciliation for Redis-DB divergence
-- Silent failures with no retry
+See details in commit history. This version introduced Kafka producer/consumer but kept @Async as dual-write.
 
-**Implemented** (Phase 1 - Dual-write):
+---
 
-1. **Kafka Infrastructure** (KRaft mode, no ZooKeeper):
-   - Single broker with KRaft mode (Kafka 3.x recommended approach)
-   - Topic: `read-receipts` (8 partitions, 48-hour retention)
-   - Producer: Web server publishes after Redis write (async, non-blocking)
-   - Consumer: Batch processing with 4 concurrent threads
+### v0.4.2 - Improved Kafka-Based Read Receipt Persistence 🚧
 
-2. **Consumer Batching** (`ReadReceiptPersistenceService`):
-   - Polls up to 500 events per batch
-   - Deduplicates: Latest timestamp per user-channel pair
-   - Batch upsert with `GREATEST()` for order resolution
-   - Manual acknowledgment after successful DB write
-   - Expected: 30-50% write reduction via deduplication
+**Goal**: Improve reconciliation strategy and remove @Async dual-write
 
-3. **Order Resolution**:
-   ```sql
-   INSERT INTO read_receipts (user_id, channel_id, last_read_timestamp)
-   VALUES (?, ?, ?)
-   ON CONFLICT (user_id, channel_id)
-   DO UPDATE SET
-       last_read_timestamp = GREATEST(
-           read_receipts.last_read_timestamp,
-           EXCLUDED.last_read_timestamp
-       )
-   -- Prevents older timestamp from overwriting newer
+**Motivation (improvements over v0.4.1)**:
+- ❌ **Scheduled reconciliation inefficient**: Scans entire table every 5 minutes (100만+ records)
+- ❌ **@Async still present**: Dual-write complexity unnecessary for learning project
+- ❌ **No Kafka producer fallback**: Producer failures lose data
+
+**Implemented**:
+
+1. **DLT Consumer Reconciliation** (replaces scheduled job):
+   ```java
+   @KafkaListener(topics = "read-receipts-dlt")
+   public void handleFailedReadReceipt(ReadReceiptEvent event) {
+       // Only processes actual failed events (not entire table)
+       String redisValue = getFromRedis(event);
+       upsertToDatabase(redisValue);  // GREATEST() for order safety
+   }
    ```
+   - ✅ **Event-driven**: Only processes failed events
+   - ✅ **Efficient**: No full table scans
+   - ✅ **Automatic**: DLT events trigger reconciliation immediately
 
-4. **Reconciliation Job** (`ReadReceiptReconciliationService`):
-   - Scheduled every 5 minutes via `@Scheduled`
-   - Finds DB records not updated in last 10 minutes
-   - Compares with Redis values and fixes divergence
-   - Tracks metrics: stale count, fixed count, max divergence age
+2. **Kafka Producer Fallback Queue**:
+   ```java
+   try {
+       kafkaTemplate.send(event).get(100, TimeUnit.MILLISECONDS);
+   } catch (Exception e) {
+       fallbackQueue.offer(event);  // In-memory queue
+       // Retry scheduler attempts republish every 5 seconds
+   }
+   ```
+   - ✅ **Resilient**: Kafka outages don't lose data
+   - ✅ **Self-healing**: Automatic retry on recovery
 
-**Current Status**: Phase 1 (Dual-write)
-- Kafka producer: ✅ Publishing events after Redis write
-- Kafka consumer: ✅ Batch processing with deduplication
-- @Async persistence: ✅ Still active for comparison
-- Reconciliation: ✅ Running every 5 minutes
+3. **@Async Removal**:
+   - Removed dual-write complexity
+   - Kafka is sole durability mechanism
+   - Simpler codebase for learning project
 
-**Next Steps**:
-- Phase 2: Validate Kafka consumer correctness with real traffic
-- Phase 3: Remove `@Async` persistence after validation
-- Phase 4: Performance testing and monitoring
+4. **Kafka Infrastructure** (unchanged from v0.4.1):
+   - Topic: `read-receipts` (8 partitions, 48-hour retention)
+   - Consumer batching: Up to 500 events/batch
+   - Deduplication: Latest timestamp per user-channel pair
+   - Order resolution: `GREATEST()` SQL function
 
 **Benefits Achieved**:
 
@@ -356,22 +355,23 @@ Current `@Async` implementation has critical flaws that would cause system failu
 - ✅ **Backpressure**: Consumer poll rate configurable, can't overwhelm DB
 - ✅ **Batching**: Up to 50% write reduction via deduplication
 - ✅ **Order guarantee**: SQL `GREATEST()` prevents stale writes
-- ✅ **Reconciliation**: Detects and fixes Redis-DB divergence automatically
-- ✅ **Observability**: Metrics for stale count, fixed count, divergence age
+- ✅ **DLT reconciliation**: Event-driven recovery, no full table scans
+- ✅ **Producer fallback**: Kafka failures don't lose data
+- ✅ **Observability**: Metrics for DLT events, fallback queue, consumer lag
 - ✅ **Proven pattern**: Same architecture as Slack's job queue (33,000 jobs/sec)
 
 **Key Learnings**:
 
 - ✅ **Kafka without ZooKeeper**: KRaft mode (Kafka 3.x) simplifies deployment
-- ✅ **Producer patterns**: Async send with callback for non-blocking writes
+- ✅ **Producer patterns**: Async send with fallback queue for resilience
 - ✅ **Consumer batching**: Poll 500 events, deduplicate, batch upsert
 - ✅ **Order resolution**: `GREATEST()` SQL function prevents timestamp inversion
-- ✅ **Reconciliation**: Scheduled job to detect and fix divergence
-- ✅ **Dual-write pattern**: Run old and new systems in parallel for validation
+- ✅ **DLT reconciliation**: Event-driven approach beats scheduled scans
+- ✅ **Efficient reconciliation**: Only process failed events, not entire table
 
 **Documentation**: See **[ADR-0007: Kafka-Based Batching for Read Receipt Persistence](./docs/adr/0007-kafka-batching-for-read-receipt-persistence.md)** for full analysis.
 
-**Deliverable**: "Kafka-based read receipt persistence with batching, deduplication, and reconciliation (Phase 1 complete)"
+**Deliverable**: "Production-ready Kafka persistence with DLT reconciliation and zero dual-write complexity"
 
 ---
 

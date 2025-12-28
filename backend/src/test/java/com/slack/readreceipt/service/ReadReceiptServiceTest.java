@@ -18,6 +18,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.slack.common.service.PermissionService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -26,10 +29,11 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -59,6 +63,12 @@ class ReadReceiptServiceTest {
 
     @Mock
     private KafkaTemplate<String, ReadReceiptEvent> kafkaTemplate;
+
+    @Mock
+    private MeterRegistry meterRegistry;
+
+    @Mock
+    private Counter counter;
 
     @InjectMocks
     private ReadReceiptService readReceiptService;
@@ -108,7 +118,11 @@ class ReadReceiptServiceTest {
         CompletableFuture<SendResult<String, ReadReceiptEvent>> future = mock(CompletableFuture.class);
         lenient().when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
                 .thenReturn(future);
-        lenient().when(future.whenComplete(any())).thenReturn(future);
+        lenient().when(future.get(anyLong(), any())).thenReturn(null);
+
+        // MeterRegistry mock setup
+        lenient().when(meterRegistry.counter(anyString())).thenReturn(counter);
+        lenient().when(meterRegistry.gauge(anyString(), anyInt())).thenReturn(0);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {
@@ -302,7 +316,7 @@ class ReadReceiptServiceTest {
 
     @Test
     @DisplayName("Kafka publish 실패해도 Redis 업데이트는 성공한다")
-    void updateReadReceipt_KafkaFailure_RedisSucceeds() {
+    void updateReadReceipt_KafkaFailure_RedisSucceeds() throws Exception {
         // given
         lenient().doNothing().when(valueOperations).set(anyString(), anyString());
 
@@ -310,6 +324,7 @@ class ReadReceiptServiceTest {
         CompletableFuture<SendResult<String, ReadReceiptEvent>> failedFuture = mock(CompletableFuture.class);
         when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
                 .thenReturn(failedFuture);
+        when(failedFuture.get(anyLong(), any())).thenThrow(new TimeoutException("Kafka timeout"));
 
         // when
         readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
@@ -322,6 +337,8 @@ class ReadReceiptServiceTest {
                 eq("/topic/channel.100"),
                 any(com.slack.websocket.dto.WebSocketMessage.class)
         );
+        // Fallback metric should be incremented
+        verify(counter, atLeastOnce()).increment();
     }
 
     @Test
@@ -333,5 +350,54 @@ class ReadReceiptServiceTest {
 
         // then
         verify(kafkaTemplate, never()).send(anyString(), anyString(), any(ReadReceiptEvent.class));
+    }
+
+    @Test
+    @DisplayName("Kafka 실패 시 fallback queue에 이벤트가 추가된다")
+    void updateReadReceipt_KafkaFailure_UsesFallbackQueue() throws Exception {
+        // given
+        lenient().doNothing().when(valueOperations).set(anyString(), anyString());
+
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SendResult<String, ReadReceiptEvent>> failedFuture = mock(CompletableFuture.class);
+        when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
+                .thenReturn(failedFuture);
+        when(failedFuture.get(anyLong(), any())).thenThrow(new TimeoutException("Kafka timeout"));
+
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
+
+        // then
+        // Fallback queue에 추가되었는지는 직접 확인 불가 (private)
+        // 대신 metric 증가 확인
+        verify(counter, atLeastOnce()).increment();
+    }
+
+    @Test
+    @DisplayName("fallback queue retry는 성공 시 이벤트를 Kafka에 재발행한다")
+    void retryFallbackQueue_Success() throws Exception {
+        // given
+        lenient().doNothing().when(valueOperations).set(anyString(), anyString());
+
+        // First call fails
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SendResult<String, ReadReceiptEvent>> failedFuture = mock(CompletableFuture.class);
+        when(failedFuture.get(anyLong(), any())).thenThrow(new TimeoutException("Kafka timeout"));
+
+        // Second call succeeds
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SendResult<String, ReadReceiptEvent>> successFuture = mock(CompletableFuture.class);
+        when(successFuture.get(anyLong(), any())).thenReturn(null);
+
+        when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
+                .thenReturn(failedFuture)
+                .thenReturn(successFuture);
+
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);  // Fails, adds to queue
+        readReceiptService.retryFallbackQueue();  // Retries successfully
+
+        // then
+        verify(kafkaTemplate, times(2)).send(anyString(), anyString(), any(ReadReceiptEvent.class));
     }
 }

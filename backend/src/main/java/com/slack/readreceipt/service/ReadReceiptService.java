@@ -15,13 +15,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import com.slack.common.service.PermissionService;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Read receipt service for tracking and broadcasting read status
@@ -43,13 +46,19 @@ public class ReadReceiptService {
     private final ChannelRepository channelRepository;
     private final PermissionService permissionService;
     private final KafkaTemplate<String, ReadReceiptEvent> kafkaTemplate;
+    private final MeterRegistry meterRegistry;
+
+    /**
+     * Fallback queue for Kafka producer failures
+     * Events that fail to publish to Kafka are queued here for retry
+     */
+    private final Queue<ReadReceiptEvent> fallbackQueue = new ConcurrentLinkedQueue<>();
 
     /**
      * Update read receipt for a user in a channel
      * 1. Updates Redis immediately (real-time)
      * 2. Broadcasts to channel members via WebSocket
-     * 3. Publishes to Kafka for durable persistence (v0.4.1)
-     * 4. [Dual-write] Also persists via @Async for comparison (Phase 1)
+     * 3. Publishes to Kafka for durable persistence (v0.4.2)
      *
      * @param userId User ID
      * @param channelId Channel ID
@@ -72,12 +81,8 @@ public class ReadReceiptService {
         // 2. Broadcast via WebSocket (real-time notification)
         broadcastReadReceipt(userId, channelId, lastReadTimestamp);
 
-        // 3. Publish to Kafka (durable, batched persistence - v0.4.1)
+        // 3. Publish to Kafka (durable, batched persistence - v0.4.2)
         publishToKafka(userId, channelId, lastReadTimestamp);
-
-        // 4. [Dual-write Phase 1] Keep @Async for comparison
-        // TODO: Remove after validating Kafka consumer works correctly
-        persistToDatabase(userId, channelId, lastReadTimestamp);
     }
 
     /**
@@ -165,7 +170,7 @@ public class ReadReceiptService {
 
     /**
      * Publish read receipt event to Kafka for durable persistence
-     * Non-blocking async send - failures are logged but don't affect user experience
+     * Uses fallback queue for resilience against Kafka failures
      * Kafka consumer will batch process events and persist to DB
      *
      * @param userId User ID
@@ -180,65 +185,80 @@ public class ReadReceiptService {
                     .lastReadTimestamp(lastReadTimestamp)
                     .build();
 
-            // Async send with callback for monitoring
+            // Sync send with timeout for fast failure detection
             kafkaTemplate.send(KafkaConfig.READ_RECEIPTS_TOPIC, event.getPartitionKey(), event)
-                    .whenComplete((result, ex) -> {
-                        if (ex != null) {
-                            log.error("Failed to publish read receipt to Kafka: userId={}, channelId={}, timestamp={}",
-                                    userId, channelId, lastReadTimestamp, ex);
-                            // Redis is already updated, user experience unaffected
-                            // @Async persistence will serve as fallback during Kafka issues
-                        } else {
-                            log.debug("Published read receipt to Kafka: userId={}, channelId={}, timestamp={}, partition={}",
-                                    userId, channelId, lastReadTimestamp, result.getRecordMetadata().partition());
-                        }
-                    });
+                    .get(100, TimeUnit.MILLISECONDS);
+
+            log.debug("Published read receipt to Kafka: userId={}, channelId={}, timestamp={}",
+                    userId, channelId, lastReadTimestamp);
 
         } catch (Exception e) {
-            log.error("Unexpected error publishing to Kafka: userId={}, channelId={}",
-                    userId, channelId, e);
+            log.error("Kafka publish failed, using fallback queue: userId={}, channelId={}, timestamp={}",
+                    userId, channelId, lastReadTimestamp, e);
+
+            // Fallback: Queue for retry
+            ReadReceiptEvent event = ReadReceiptEvent.builder()
+                    .userId(userId)
+                    .channelId(channelId)
+                    .lastReadTimestamp(lastReadTimestamp)
+                    .build();
+
+            fallbackQueue.offer(event);
+            meterRegistry.counter("read_receipts.kafka.fallback").increment();
+
+            // Redis is already updated, user experience unaffected
+            // Scheduled retry will attempt republish every 5 seconds
         }
     }
 
     /**
-     * Persist read receipt to database asynchronously
-     * [Dual-write Phase 1] This will be removed after Kafka consumer is validated
-     * Uses separate transaction to avoid blocking the main transaction
-     * Failures are logged but don't affect user experience (Redis already updated)
-     *
-     * @param userId User ID
-     * @param channelId Channel ID
-     * @param lastReadTimestamp Last read timestamp
+     * Retry publishing events from fallback queue to Kafka
+     * Runs every 5 seconds to attempt republishing failed events
+     * Stops on first failure to avoid overwhelming Kafka during outages
      */
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected void persistToDatabase(Long userId, Long channelId, String lastReadTimestamp) {
-        try {
-            ReadReceipt receipt = readReceiptRepository
-                    .findByUserIdAndChannelId(userId, channelId)
-                    .orElseGet(() -> {
-                        User user = userRepository.getReferenceById(userId);
-                        Channel channel = channelRepository.getReferenceById(channelId);
-                        return ReadReceipt.builder()
-                                .user(user)
-                                .channel(channel)
-                                .lastReadTimestamp("0")  // Initial timestamp
-                                .build();
-                    });
-
-            receipt.updateLastReadTimestamp(lastReadTimestamp);
-            readReceiptRepository.save(receipt);
-
-            log.debug("Persisted read receipt to DB: userId={}, channelId={}, timestamp={}",
-                    userId, channelId, lastReadTimestamp);
-
-        } catch (Exception e) {
-            log.error("Failed to persist read receipt to DB (Redis already updated): " +
-                            "userId={}, channelId={}, timestamp={}",
-                    userId, channelId, lastReadTimestamp, e);
-            // Redis is already updated, so user experience is not affected
-            // DB will be eventually consistent through retry or next update
+    @Scheduled(fixedDelay = 5000)
+    public void retryFallbackQueue() {
+        if (fallbackQueue.isEmpty()) {
+            return;
         }
+
+        int retried = 0;
+        int succeeded = 0;
+
+        log.info("Retrying fallback queue, size: {}", fallbackQueue.size());
+
+        ReadReceiptEvent event;
+        while ((event = fallbackQueue.poll()) != null) {
+            retried++;
+            try {
+                kafkaTemplate.send(KafkaConfig.READ_RECEIPTS_TOPIC, event.getPartitionKey(), event)
+                        .get(100, TimeUnit.MILLISECONDS);
+
+                succeeded++;
+                meterRegistry.counter("read_receipts.fallback.success").increment();
+
+                log.debug("Fallback retry success: userId={}, channelId={}",
+                        event.getUserId(), event.getChannelId());
+
+            } catch (Exception e) {
+                // Re-queue for next retry
+                fallbackQueue.offer(event);
+
+                log.warn("Fallback retry failed, re-queued: userId={}, channelId={}, remaining={}",
+                        event.getUserId(), event.getChannelId(), fallbackQueue.size());
+
+                // Stop on first failure to avoid log spam during Kafka outage
+                break;
+            }
+        }
+
+        if (succeeded > 0) {
+            log.info("Fallback retry completed: retried={}, succeeded={}, remaining={}",
+                    retried, succeeded, fallbackQueue.size());
+        }
+
+        // Track queue size metric
+        meterRegistry.gauge("read_receipts.fallback.queue_size", fallbackQueue.size());
     }
 
     private String buildRedisKey(Long userId, Long channelId) {
