@@ -1,8 +1,10 @@
 package com.slack.service;
 
+import com.slack.config.KafkaConfig;
 import com.slack.domain.channel.Channel;
 import com.slack.domain.readreceipt.ReadReceipt;
 import com.slack.domain.user.User;
+import com.slack.dto.events.ReadReceiptEvent;
 import com.slack.dto.websocket.WebSocketMessage;
 import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ChannelRepository;
@@ -11,6 +13,7 @@ import com.slack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -38,12 +41,14 @@ public class ReadReceiptService {
     private final UserRepository userRepository;
     private final ChannelRepository channelRepository;
     private final PermissionService permissionService;
+    private final KafkaTemplate<String, ReadReceiptEvent> kafkaTemplate;
 
     /**
      * Update read receipt for a user in a channel
      * 1. Updates Redis immediately (real-time)
      * 2. Broadcasts to channel members via WebSocket
-     * 3. Persists to DB asynchronously (durability)
+     * 3. Publishes to Kafka for durable persistence (v0.4.1)
+     * 4. [Dual-write] Also persists via @Async for comparison (Phase 1)
      *
      * @param userId User ID
      * @param channelId Channel ID
@@ -66,7 +71,11 @@ public class ReadReceiptService {
         // 2. Broadcast via WebSocket (real-time notification)
         broadcastReadReceipt(userId, channelId, lastReadTimestamp);
 
-        // 3. Persist to DB asynchronously (durability, no blocking)
+        // 3. Publish to Kafka (durable, batched persistence - v0.4.1)
+        publishToKafka(userId, channelId, lastReadTimestamp);
+
+        // 4. [Dual-write Phase 1] Keep @Async for comparison
+        // TODO: Remove after validating Kafka consumer works correctly
         persistToDatabase(userId, channelId, lastReadTimestamp);
     }
 
@@ -154,7 +163,45 @@ public class ReadReceiptService {
     }
 
     /**
+     * Publish read receipt event to Kafka for durable persistence
+     * Non-blocking async send - failures are logged but don't affect user experience
+     * Kafka consumer will batch process events and persist to DB
+     *
+     * @param userId User ID
+     * @param channelId Channel ID
+     * @param lastReadTimestamp Last read timestamp
+     */
+    private void publishToKafka(Long userId, Long channelId, String lastReadTimestamp) {
+        try {
+            ReadReceiptEvent event = ReadReceiptEvent.builder()
+                    .userId(userId)
+                    .channelId(channelId)
+                    .lastReadTimestamp(lastReadTimestamp)
+                    .build();
+
+            // Async send with callback for monitoring
+            kafkaTemplate.send(KafkaConfig.READ_RECEIPTS_TOPIC, event.getPartitionKey(), event)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("Failed to publish read receipt to Kafka: userId={}, channelId={}, timestamp={}",
+                                    userId, channelId, lastReadTimestamp, ex);
+                            // Redis is already updated, user experience unaffected
+                            // @Async persistence will serve as fallback during Kafka issues
+                        } else {
+                            log.debug("Published read receipt to Kafka: userId={}, channelId={}, timestamp={}, partition={}",
+                                    userId, channelId, lastReadTimestamp, result.getRecordMetadata().partition());
+                        }
+                    });
+
+        } catch (Exception e) {
+            log.error("Unexpected error publishing to Kafka: userId={}, channelId={}",
+                    userId, channelId, e);
+        }
+    }
+
+    /**
      * Persist read receipt to database asynchronously
+     * [Dual-write Phase 1] This will be removed after Kafka consumer is validated
      * Uses separate transaction to avoid blocking the main transaction
      * Failures are logged but don't affect user experience (Redis already updated)
      *
