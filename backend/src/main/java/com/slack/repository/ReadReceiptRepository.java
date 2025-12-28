@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,4 +34,13 @@ public interface ReadReceiptRepository extends JpaRepository<ReadReceipt, Long> 
      * @return ReadReceipt 목록
      */
     List<ReadReceipt> findByUserId(Long userId);
+
+    /**
+     * Find read receipts not updated since given timestamp
+     * Used by reconciliation job to detect stale records
+     *
+     * @param threshold Timestamp threshold
+     * @return List of potentially stale read receipts
+     */
+    List<ReadReceipt> findByUpdatedAtBefore(LocalDateTime threshold);
 }
