@@ -1,10 +1,12 @@
 package com.slack.service;
 
+import com.slack.config.KafkaConfig;
 import com.slack.domain.channel.Channel;
 import com.slack.domain.channel.ChannelType;
 import com.slack.domain.readreceipt.ReadReceipt;
 import com.slack.domain.user.User;
 import com.slack.domain.workspace.Workspace;
+import com.slack.dto.events.ReadReceiptEvent;
 import com.slack.repository.ChannelMemberRepository;
 import com.slack.repository.ReadReceiptRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.lang.reflect.Field;
@@ -24,6 +28,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -50,6 +55,9 @@ class ReadReceiptServiceTest {
 
     @Mock
     private PermissionService permissionService;
+
+    @Mock
+    private KafkaTemplate<String, ReadReceiptEvent> kafkaTemplate;
 
     @InjectMocks
     private ReadReceiptService readReceiptService;
@@ -93,6 +101,13 @@ class ReadReceiptServiceTest {
         setField(testChannel, "id", 100L);
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // Kafka mock setup
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SendResult<String, ReadReceiptEvent>> future = mock(CompletableFuture.class);
+        lenient().when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
+                .thenReturn(future);
+        lenient().when(future.whenComplete(any())).thenReturn(future);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {
@@ -238,5 +253,84 @@ class ReadReceiptServiceTest {
         assertThat(message.getChannelId()).isEqualTo(CHANNEL_ID);
         assertThat(message.getUserId()).isEqualTo(USER_ID);
         assertThat(message.getCreatedAt()).isEqualTo(TIMESTAMP_ID);
+    }
+
+    @Test
+    @DisplayName("read receipt 업데이트 시 Kafka에 이벤트를 publish한다")
+    void updateReadReceipt_PublishesToKafka() {
+        // given
+        lenient().doNothing().when(valueOperations).set(anyString(), anyString());
+
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
+
+        // then
+        ArgumentCaptor<ReadReceiptEvent> eventCaptor = ArgumentCaptor.forClass(ReadReceiptEvent.class);
+        verify(kafkaTemplate, times(1)).send(
+                eq(KafkaConfig.READ_RECEIPTS_TOPIC),
+                anyString(),
+                eventCaptor.capture()
+        );
+
+        ReadReceiptEvent publishedEvent = eventCaptor.getValue();
+        assertThat(publishedEvent.getUserId()).isEqualTo(USER_ID);
+        assertThat(publishedEvent.getChannelId()).isEqualTo(CHANNEL_ID);
+        assertThat(publishedEvent.getLastReadTimestamp()).isEqualTo(TIMESTAMP_ID);
+    }
+
+    @Test
+    @DisplayName("Kafka publish 시 올바른 partition key를 사용한다")
+    void updateReadReceipt_UsesCorrectPartitionKey() {
+        // given
+        lenient().doNothing().when(valueOperations).set(anyString(), anyString());
+
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
+
+        // then
+        ArgumentCaptor<String> partitionKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(kafkaTemplate, times(1)).send(
+                eq(KafkaConfig.READ_RECEIPTS_TOPIC),
+                partitionKeyCaptor.capture(),
+                any(ReadReceiptEvent.class)
+        );
+
+        String partitionKey = partitionKeyCaptor.getValue();
+        assertThat(partitionKey).isEqualTo("1:100");  // userId:channelId
+    }
+
+    @Test
+    @DisplayName("Kafka publish 실패해도 Redis 업데이트는 성공한다")
+    void updateReadReceipt_KafkaFailure_RedisSucceeds() {
+        // given
+        lenient().doNothing().when(valueOperations).set(anyString(), anyString());
+
+        @SuppressWarnings("unchecked")
+        CompletableFuture<SendResult<String, ReadReceiptEvent>> failedFuture = mock(CompletableFuture.class);
+        when(kafkaTemplate.send(anyString(), anyString(), any(ReadReceiptEvent.class)))
+                .thenReturn(failedFuture);
+
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
+
+        // then
+        // Redis 업데이트는 성공해야 함 (Kafka 실패와 무관)
+        String expectedKey = "read_receipt:1:100";
+        verify(valueOperations, times(1)).set(eq(expectedKey), eq(TIMESTAMP_ID));
+        verify(messagingTemplate, times(1)).convertAndSend(
+                eq("/topic/channel.100"),
+                any(com.slack.dto.websocket.WebSocketMessage.class)
+        );
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 timestamp는 Kafka에 publish되지 않는다")
+    void updateReadReceipt_InvalidTimestamp_NoKafkaPublish() {
+        // when
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, null);
+        readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, "");
+
+        // then
+        verify(kafkaTemplate, never()).send(anyString(), anyString(), any(ReadReceiptEvent.class));
     }
 }
