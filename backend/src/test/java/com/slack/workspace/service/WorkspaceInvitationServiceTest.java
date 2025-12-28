@@ -56,6 +56,9 @@ class WorkspaceInvitationServiceTest {
     @Mock
     private InvitationNotifier invitationNotifier;
 
+    @Mock
+    private com.slack.workspace.mapper.WorkspaceInvitationMapper invitationMapper;
+
     @InjectMocks
     private WorkspaceInvitationService invitationService;
 
@@ -73,6 +76,21 @@ class WorkspaceInvitationServiceTest {
         inviteRequest = WorkspaceInviteRequest.builder()
                 .email("invitee@example.com")
                 .build();
+
+        // Mock invitationMapper
+        lenient().when(invitationMapper.toResponse(any(WorkspaceInvitation.class)))
+                .thenAnswer(invocation -> {
+                    WorkspaceInvitation inv = invocation.getArgument(0);
+                    return com.slack.workspace.dto.WorkspaceInviteResponse.builder()
+                            .id(inv.getId())
+                            .workspaceId(inv.getWorkspace().getId())
+                            .email(inv.getEmail())
+                            .token(inv.getToken())
+                            .status(inv.getStatus().name())
+                            .expiresAt(inv.getExpiresAt())
+                            .createdAt(inv.getCreatedAt())
+                            .build();
+                });
     }
 
     private User createUser(Long id, String authUserId, String email, String name) throws Exception {

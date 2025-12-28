@@ -9,6 +9,7 @@ import com.slack.channel.repository.ChannelMemberRepository;
 import com.slack.channel.repository.ChannelRepository;
 import com.slack.message.repository.MessageRepository;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
+import com.slack.unread.mapper.UnreadMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class UnreadsViewService {
     private final MessageRepository messageRepository;
     private final ChannelRepository channelRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final UnreadMapper unreadMapper;
 
     /**
      * Get aggregated unread messages across all channels for a user.
@@ -126,15 +128,11 @@ public class UnreadsViewService {
         for (UnreadMessageData data : unreadMessageDataList) {
             Message message = messageMap.get(data.getMessageId());
             if (message != null) {
-                unreadMessages.add(UnreadMessageResponse.builder()
-                        .messageId(message.getId())
-                        .channelId(data.getChannelId())
-                        .channelName(data.getChannelName())
-                        .userId(message.getUser().getId())
-                        .content(message.getContent())
-                        .createdAt(message.getCreatedAt())
-                        .timestampId(message.getTimestampId())
-                        .build());
+                unreadMessages.add(unreadMapper.toUnreadMessageResponse(
+                        message,
+                        data.getChannelId(),
+                        data.getChannelName()
+                ));
             }
         }
 

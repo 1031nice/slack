@@ -2,19 +2,19 @@ package com.slack.channel.service;
 
 import com.slack.channel.domain.Channel;
 import com.slack.channel.domain.ChannelType;
-import com.slack.workspace.domain.Workspace;
 import com.slack.channel.dto.ChannelCreateRequest;
 import com.slack.channel.dto.ChannelResponse;
-import com.slack.exception.ChannelNotFoundException;
-import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.channel.repository.ChannelMemberRepository;
 import com.slack.channel.repository.ChannelRepository;
+import com.slack.common.service.PermissionService;
+import com.slack.exception.ChannelNotFoundException;
+import com.slack.exception.WorkspaceNotFoundException;
+import com.slack.unread.service.UnreadCountService;
+import com.slack.workspace.domain.Workspace;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
 import com.slack.workspace.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.slack.unread.service.UnreadCountService;
-import com.slack.common.service.PermissionService;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;

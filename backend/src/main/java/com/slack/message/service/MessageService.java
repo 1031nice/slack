@@ -17,6 +17,7 @@ import com.slack.user.service.UserService;
 import com.slack.unread.service.UnreadCountService;
 import com.slack.mention.service.MentionService;
 import com.slack.common.service.PermissionService;
+import com.slack.message.mapper.MessageMapper;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneId;
@@ -42,6 +43,7 @@ public class MessageService {
     private final MentionService mentionService;
     private final PermissionService permissionService;
     private final MessageTimestampGenerator timestampGenerator;
+    private final MessageMapper messageMapper;
 
     /**
      * Create a new message in a channel.
@@ -164,15 +166,6 @@ public class MessageService {
     }
 
     private MessageResponse toResponse(Message message) {
-        return MessageResponse.builder()
-                .id(message.getId())
-                .channelId(message.getChannel().getId())
-                .userId(message.getUser().getId())
-                .content(message.getContent())
-                .parentMessageId(message.getParentMessage() != null ? message.getParentMessage().getId() : null)
-                .createdAt(message.getCreatedAt())
-                .updatedAt(message.getUpdatedAt())
-                .timestampId(message.getTimestampId())
-                .build();
+        return messageMapper.toResponse(message);
     }
 }

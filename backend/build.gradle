@@ -37,6 +37,10 @@ dependencies {
     // Kafka for durable event streaming (v0.4.1)
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // MapStruct for DTO mapping
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
     runtimeOnly 'org.postgresql:postgresql'
     
     implementation 'org.flywaydb:flyway-core:10.10.0'
@@ -51,6 +55,7 @@ dependencies {
     
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'

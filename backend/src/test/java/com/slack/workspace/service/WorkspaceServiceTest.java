@@ -47,6 +47,9 @@ class WorkspaceServiceTest {
     @Mock
     private PermissionService permissionService;
 
+    @Mock
+    private com.slack.workspace.mapper.WorkspaceMapper workspaceMapper;
+
     @InjectMocks
     private WorkspaceService workspaceService;
 
@@ -67,6 +70,19 @@ class WorkspaceServiceTest {
                 .owner(testUser)
                 .build();
         setField(testWorkspace, "id", 1L);
+
+        // Mock workspaceMapper
+        lenient().when(workspaceMapper.toResponse(any(Workspace.class)))
+                .thenAnswer(invocation -> {
+                    Workspace ws = invocation.getArgument(0);
+                    return com.slack.workspace.dto.WorkspaceResponse.builder()
+                            .id(ws.getId())
+                            .name(ws.getName())
+                            .ownerId(ws.getOwner().getId())
+                            .createdAt(ws.getCreatedAt())
+                            .updatedAt(ws.getUpdatedAt())
+                            .build();
+                });
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

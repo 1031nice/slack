@@ -58,6 +58,9 @@ class MessageServiceTest {
     @Mock
     private MessageTimestampGenerator timestampGenerator;
 
+    @Mock
+    private com.slack.message.mapper.MessageMapper messageMapper;
+
     @InjectMocks
     private MessageService messageService;
 
@@ -98,6 +101,22 @@ class MessageServiceTest {
         setField(testMessage, "id", 1L);
         setField(testMessage, "createdAt", java.time.LocalDateTime.now());
         setField(testMessage, "updatedAt", java.time.LocalDateTime.now());
+
+        // Mock messageMapper to return a valid MessageResponse
+        lenient().when(messageMapper.toResponse(any(Message.class)))
+                .thenAnswer(invocation -> {
+                    Message msg = invocation.getArgument(0);
+                    return com.slack.message.dto.MessageResponse.builder()
+                            .id(msg.getId())
+                            .channelId(msg.getChannel().getId())
+                            .userId(msg.getUser().getId())
+                            .content(msg.getContent())
+                            .parentMessageId(msg.getParentMessage() != null ? msg.getParentMessage().getId() : null)
+                            .createdAt(msg.getCreatedAt())
+                            .updatedAt(msg.getUpdatedAt())
+                            .timestampId(msg.getTimestampId())
+                            .build();
+                });
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

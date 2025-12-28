@@ -17,6 +17,7 @@ import com.slack.workspace.repository.WorkspaceInvitationRepository;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
 import com.slack.workspace.repository.WorkspaceRepository;
 import com.slack.workspace.service.notification.InvitationNotifier;
+import com.slack.workspace.mapper.WorkspaceInvitationMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.slack.user.service.UserService;
@@ -38,6 +39,7 @@ public class WorkspaceInvitationService {
     private final UserService userService;
     private final PermissionService permissionService;
     private final InvitationNotifier invitationNotifier;
+    private final WorkspaceInvitationMapper invitationMapper;
 
     /**
      * Invites a user to a workspace.
@@ -117,15 +119,7 @@ public class WorkspaceInvitationService {
     }
 
     private WorkspaceInviteResponse toResponse(WorkspaceInvitation invitation) {
-        return WorkspaceInviteResponse.builder()
-                .id(invitation.getId())
-                .workspaceId(invitation.getWorkspace().getId())
-                .email(invitation.getEmail())
-                .token(invitation.getToken())
-                .status(invitation.getStatus().name())
-                .expiresAt(invitation.getExpiresAt())
-                .createdAt(invitation.getCreatedAt())
-                .build();
+        return invitationMapper.toResponse(invitation);
     }
 }
 

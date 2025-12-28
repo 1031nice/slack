@@ -10,6 +10,7 @@ import com.slack.exception.WorkspaceNotFoundException;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
 import com.slack.workspace.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
+import com.slack.workspace.mapper.WorkspaceMapper;
 import org.springframework.stereotype.Service;
 import com.slack.user.service.UserService;
 import com.slack.channel.service.ChannelService;
@@ -33,6 +34,7 @@ public class WorkspaceService {
     private final UserService userService;
     private final ChannelService channelService;
     private final PermissionService permissionService;
+    private final WorkspaceMapper workspaceMapper;
 
     @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest request, String authUserId) {
@@ -75,13 +77,7 @@ public class WorkspaceService {
     }
 
     private WorkspaceResponse toResponse(Workspace workspace) {
-        return WorkspaceResponse.builder()
-                .id(workspace.getId())
-                .name(workspace.getName())
-                .ownerId(workspace.getOwner().getId())
-                .createdAt(workspace.getCreatedAt())
-                .updatedAt(workspace.getUpdatedAt())
-                .build();
+        return workspaceMapper.toResponse(workspace);
     }
 }
 

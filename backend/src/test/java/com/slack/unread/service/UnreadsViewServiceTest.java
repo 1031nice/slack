@@ -43,6 +43,9 @@ class UnreadsViewServiceTest {
     @Mock
     private WorkspaceMemberRepository workspaceMemberRepository;
 
+    @Mock
+    private com.slack.unread.mapper.UnreadMapper unreadMapper;
+
     @InjectMocks
     private UnreadsViewService unreadsViewService;
 
@@ -109,6 +112,23 @@ class UnreadsViewServiceTest {
                 .build();
         setField(message3, "id", 3000L);
         setField(message3, "createdAt", LocalDateTime.now().minusHours(1));
+
+        // Mock unreadMapper
+        lenient().when(unreadMapper.toUnreadMessageResponse(any(Message.class), anyLong(), anyString()))
+                .thenAnswer(invocation -> {
+                    Message msg = invocation.getArgument(0);
+                    Long channelId = invocation.getArgument(1);
+                    String channelName = invocation.getArgument(2);
+                    return com.slack.unread.dto.UnreadMessageResponse.builder()
+                            .messageId(msg.getId())
+                            .channelId(channelId)
+                            .channelName(channelName)
+                            .userId(msg.getUser().getId())
+                            .content(msg.getContent())
+                            .createdAt(msg.getCreatedAt())
+                            .timestampId(msg.getTimestampId())
+                            .build();
+                });
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {
@@ -287,7 +307,8 @@ class UnreadsViewServiceTest {
                 unreadCountService,
                 messageRepository,
                 channelRepository,
-                workspaceMemberRepository
+                workspaceMemberRepository,
+                unreadMapper
         );
         UnreadsViewResponse response = service.getUnreads(USER_ID, "newest", 500); // exceeds MAX_LIMIT (200)
 
