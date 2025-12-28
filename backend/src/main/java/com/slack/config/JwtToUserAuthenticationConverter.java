@@ -1,7 +1,7 @@
 package com.slack.config;
 
-import com.slack.domain.user.User;
-import com.slack.service.UserService;
+import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;

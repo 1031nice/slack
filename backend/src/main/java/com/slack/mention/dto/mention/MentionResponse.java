@@ -1,0 +1,24 @@
+package com.slack.mention.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class MentionResponse {
+    private Long id;
+    private Long messageId;
+    private Long channelId;
+    private Long mentionedUserId;
+    private Long senderUserId;
+    private String senderName;
+    private String content;
+    private LocalDateTime createdAt;
+    private Boolean isRead;
+}

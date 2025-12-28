@@ -1,7 +1,7 @@
 package com.slack.config;
 
-import com.slack.domain.user.User;
-import com.slack.service.UserService;
+import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.util.DevJwtUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

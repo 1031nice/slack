@@ -1,6 +1,6 @@
 package com.slack.config;
 
-import com.slack.service.RedisMessageSubscriber;
+import com.slack.common.service.RedisMessageSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
