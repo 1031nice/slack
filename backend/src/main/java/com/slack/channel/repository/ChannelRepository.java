@@ -1,6 +1,7 @@
 package com.slack.channel.repository;
 
 import com.slack.channel.domain.Channel;
+import com.slack.channel.domain.ChannelType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -8,11 +9,17 @@ import java.util.Optional;
 
 public interface ChannelRepository extends JpaRepository<Channel, Long> {
     List<Channel> findByWorkspaceId(Long workspaceId);
-    
+
     /**
      * 특정 workspace에서 이름으로 channel을 찾습니다.
      * 기본 channel을 찾을 때 사용합니다.
      */
     Optional<Channel> findByWorkspaceIdAndName(Long workspaceId, String name);
+
+    /**
+     * 여러 workspace의 특정 타입 채널들을 한 번에 조회합니다.
+     * N+1 쿼리 방지용.
+     */
+    List<Channel> findByWorkspaceIdInAndType(List<Long> workspaceIds, ChannelType type);
 }
 

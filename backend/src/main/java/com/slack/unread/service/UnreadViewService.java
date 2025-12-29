@@ -49,12 +49,13 @@ public class UnreadViewService {
         UnreadSortOption sortOption = UnreadSortOption.fromString(sort);
         int messageLimit = normalizeLimit(limit);
 
-        Set<Long> channelIds = getAccessibleChannelIds(userId);
-        if (channelIds.isEmpty()) {
+        Map<Long, String> accessibleChannels = getAccessibleChannels(userId);
+        if (accessibleChannels.isEmpty()) {
             return buildEmptyResponse();
         }
 
-        List<UnreadMessageData> unreadMessageDataList = collectUnreadMessageData(channelIds, userId, sortOption);
+        List<UnreadMessageData> unreadMessageDataList = collectUnreadMessageData(
+                accessibleChannels.keySet(), userId, sortOption, accessibleChannels);
         if (unreadMessageDataList.isEmpty()) {
             return buildEmptyResponse();
         }
@@ -73,14 +74,21 @@ public class UnreadViewService {
     }
 
     /**
-     * Get all channel IDs that the user can access.
+     * Get all accessible channels with their names for the user.
+     * Returns a map of channelId -> channelName.
      * Includes PRIVATE channels where user is a member and PUBLIC channels in user's workspaces.
      */
-    private Set<Long> getAccessibleChannelIds(Long userId) {
+    private Map<Long, String> getAccessibleChannels(Long userId) {
+        Map<Long, String> channels = new HashMap<>();
 
         // Get channels where user is explicitly a member (includes both PRIVATE and PUBLIC channels)
         List<Long> memberChannelIds = channelMemberRepository.findChannelIdsByUserId(userId);
-        Set<Long> channelIds = new HashSet<>(memberChannelIds);
+        if (!memberChannelIds.isEmpty()) {
+            List<Channel> memberChannels = channelRepository.findAllById(memberChannelIds);
+            for (Channel channel : memberChannels) {
+                channels.put(channel.getId(), channel.getName());
+            }
+        }
 
         // Additionally, get all PUBLIC channels from workspaces where user is a member
         // (PUBLIC channels are accessible to all workspace members)
@@ -88,26 +96,26 @@ public class UnreadViewService {
                 .map(wm -> wm.getWorkspace().getId())
                 .toList();
 
-        for (Long workspaceId : workspaceIds) {
-            List<Long> publicChannelIds = channelRepository.findByWorkspaceId(workspaceId).stream()
-                    .filter(channel -> channel.getType() == ChannelType.PUBLIC)
-                    .map(Channel::getId)
-                    .toList();
-            channelIds.addAll(publicChannelIds);
+        if (!workspaceIds.isEmpty()) {
+            List<Channel> publicChannels = channelRepository.findByWorkspaceIdInAndType(
+                    workspaceIds, ChannelType.PUBLIC);
+            for (Channel channel : publicChannels) {
+                channels.put(channel.getId(), channel.getName());
+            }
         }
 
-        return channelIds;
+        return channels;
     }
 
     /**
      * Collect unread message data from Redis for all accessible channels.
      */
-    private List<UnreadMessageData> collectUnreadMessageData(Set<Long> channelIds, Long userId, UnreadSortOption sortOption) {
+    private List<UnreadMessageData> collectUnreadMessageData(
+            Set<Long> channelIds, Long userId, UnreadSortOption sortOption, Map<Long, String> channelNames) {
         List<UnreadMessageData> unreadMessageDataList = new ArrayList<>();
-        Map<Long, String> channelNameCache = new HashMap<>();
 
         for (Long channelId : channelIds) {
-            String channelName = getChannelName(channelId, channelNameCache);
+            String channelName = channelNames.getOrDefault(channelId, "Unknown Channel");
             boolean descending = sortOption != UnreadSortOption.OLDEST;
             Set<String> unreadMessageIds = unreadCountService.getUnreadMessageIdsSorted(userId, channelId, descending);
 
@@ -122,17 +130,6 @@ public class UnreadViewService {
         }
 
         return unreadMessageDataList;
-    }
-
-    /**
-     * Get channel name with caching.
-     */
-    private String getChannelName(Long channelId, Map<Long, String> channelNameCache) {
-        return channelNameCache.computeIfAbsent(channelId, id ->
-                channelRepository.findById(id)
-                        .map(Channel::getName)
-                        .orElse("Unknown Channel")
-        );
     }
 
     /**
