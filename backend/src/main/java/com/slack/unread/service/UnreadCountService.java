@@ -134,15 +134,30 @@ public class UnreadCountService {
      * @return Set of message IDs as strings, sorted by timestamp
      */
     public Set<String> getUnreadMessageIdsSorted(Long userId, Long channelId, boolean descending) {
+        return getUnreadMessageIdsSorted(userId, channelId, descending, -1);
+    }
+
+    /**
+     * Get unread message IDs for a user in a channel, sorted by timestamp with limit.
+     * Uses ZREVRANGE for descending (newest first) or ZRANGE for ascending (oldest first).
+     *
+     * @param userId User ID
+     * @param channelId Channel ID
+     * @param descending If true, returns newest first (ZREVRANGE), otherwise oldest first (ZRANGE)
+     * @param limit Maximum number of message IDs to return (-1 for all)
+     * @return Set of message IDs as strings, sorted by timestamp
+     */
+    public Set<String> getUnreadMessageIdsSorted(Long userId, Long channelId, boolean descending, int limit) {
         String key = buildKey(userId, channelId);
         Set<Object> result;
+        long end = limit > 0 ? limit - 1 : -1;
 
         if (descending) {
             // ZREVRANGE: newest first (descending by timestamp)
-            result = redisTemplate.opsForZSet().reverseRange(key, 0, -1);
+            result = redisTemplate.opsForZSet().reverseRange(key, 0, end);
         } else {
             // ZRANGE: oldest first (ascending by timestamp)
-            result = redisTemplate.opsForZSet().range(key, 0, -1);
+            result = redisTemplate.opsForZSet().range(key, 0, end);
         }
 
         if (result == null || result.isEmpty()) {

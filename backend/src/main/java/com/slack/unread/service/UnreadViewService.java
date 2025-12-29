@@ -54,16 +54,30 @@ public class UnreadViewService {
             return buildEmptyResponse();
         }
 
+        // Collect limited unread message data from Redis
+        // Use messageLimit per channel to ensure we get enough data for final sorting
         List<UnreadMessageData> unreadMessageDataList = collectUnreadMessageData(
-                accessibleChannels.keySet(), userId, sortOption, accessibleChannels);
+                accessibleChannels.keySet(), userId, sortOption, accessibleChannels, messageLimit);
         if (unreadMessageDataList.isEmpty()) {
             return buildEmptyResponse();
         }
 
-        List<UnreadMessageResponse> unreadMessages = buildUnreadMessages(unreadMessageDataList);
-        sortUnreadMessages(unreadMessages, sortOption);
+        // Sort all collected messages
+        sortUnreadMessageData(unreadMessageDataList, sortOption);
 
-        return applyLimitAndBuildResponse(unreadMessages, messageLimit);
+        // Take only top messageLimit messages
+        int totalCount = unreadMessageDataList.size();
+        if (unreadMessageDataList.size() > messageLimit) {
+            unreadMessageDataList = unreadMessageDataList.subList(0, messageLimit);
+        }
+
+        // Fetch message details only for the selected messages
+        List<UnreadMessageResponse> unreadMessages = buildUnreadMessages(unreadMessageDataList);
+
+        return UnreadViewResponse.builder()
+                .unreadMessages(unreadMessages)
+                .totalCount(totalCount)
+                .build();
     }
 
     /**
@@ -108,16 +122,19 @@ public class UnreadViewService {
     }
 
     /**
-     * Collect unread message data from Redis for all accessible channels.
+     * Collect unread message data from Redis for all accessible channels with limit.
+     * Each channel returns up to perChannelLimit messages to reduce memory usage.
      */
     private List<UnreadMessageData> collectUnreadMessageData(
-            Set<Long> channelIds, Long userId, UnreadSortOption sortOption, Map<Long, String> channelNames) {
+            Set<Long> channelIds, Long userId, UnreadSortOption sortOption,
+            Map<Long, String> channelNames, int perChannelLimit) {
         List<UnreadMessageData> unreadMessageDataList = new ArrayList<>();
+        boolean descending = sortOption != UnreadSortOption.OLDEST;
 
         for (Long channelId : channelIds) {
             String channelName = channelNames.getOrDefault(channelId, "Unknown Channel");
-            boolean descending = sortOption != UnreadSortOption.OLDEST;
-            Set<String> unreadMessageIds = unreadCountService.getUnreadMessageIdsSorted(userId, channelId, descending);
+            Set<String> unreadMessageIds = unreadCountService.getUnreadMessageIdsSorted(
+                    userId, channelId, descending, perChannelLimit);
 
             for (String messageIdStr : unreadMessageIds) {
                 try {
@@ -130,6 +147,25 @@ public class UnreadViewService {
         }
 
         return unreadMessageDataList;
+    }
+
+    /**
+     * Sort unread message data according to the sort option.
+     */
+    private void sortUnreadMessageData(List<UnreadMessageData> dataList, UnreadSortOption sortOption) {
+        switch (sortOption) {
+            case NEWEST:
+                dataList.sort(Comparator.comparing(UnreadMessageData::getMessageId).reversed());
+                break;
+            case OLDEST:
+                dataList.sort(Comparator.comparing(UnreadMessageData::getMessageId));
+                break;
+            case CHANNEL:
+                dataList.sort(Comparator
+                        .comparing(UnreadMessageData::getChannelName)
+                        .thenComparing(UnreadMessageData::getMessageId, Comparator.reverseOrder()));
+                break;
+        }
     }
 
     /**
@@ -157,40 +193,6 @@ public class UnreadViewService {
         }
 
         return unreadMessages;
-    }
-
-    /**
-     * Sort unread messages according to the sort option.
-     */
-    private void sortUnreadMessages(List<UnreadMessageResponse> unreadMessages, UnreadSortOption sortOption) {
-        switch (sortOption) {
-            case NEWEST:
-                unreadMessages.sort(Comparator.comparing(UnreadMessageResponse::getCreatedAt).reversed());
-                break;
-            case OLDEST:
-                unreadMessages.sort(Comparator.comparing(UnreadMessageResponse::getCreatedAt));
-                break;
-            case CHANNEL:
-                unreadMessages.sort(Comparator
-                        .comparing(UnreadMessageResponse::getChannelName)
-                        .thenComparing(UnreadMessageResponse::getCreatedAt, Comparator.reverseOrder()));
-                break;
-        }
-    }
-
-    /**
-     * Apply limit and build final response.
-     */
-    private UnreadViewResponse applyLimitAndBuildResponse(List<UnreadMessageResponse> unreadMessages, int messageLimit) {
-        int totalCount = unreadMessages.size();
-        if (unreadMessages.size() > messageLimit) {
-            unreadMessages = unreadMessages.subList(0, messageLimit);
-        }
-
-        return UnreadViewResponse.builder()
-                .unreadMessages(unreadMessages)
-                .totalCount(totalCount)
-                .build();
     }
 
     /**
