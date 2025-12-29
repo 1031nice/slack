@@ -8,7 +8,7 @@ import com.slack.message.domain.Message;
 import com.slack.message.repository.MessageRepository;
 import com.slack.unread.dto.UnreadMessageResponse;
 import com.slack.unread.dto.UnreadSortOption;
-import com.slack.unread.dto.UnreadsViewResponse;
+import com.slack.unread.dto.UnreadViewResponse;
 import com.slack.unread.mapper.UnreadMapper;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class UnreadsViewService {
+public class UnreadViewService {
 
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
@@ -43,9 +43,9 @@ public class UnreadsViewService {
      * @param userId User ID
      * @param sort   Sort option: "newest", "oldest", or "channel"
      * @param limit  Maximum number of messages to return
-     * @return UnreadsViewResponse with sorted unread messages
+     * @return UnreadViewResponse with sorted unread messages
      */
-    public UnreadsViewResponse getUnreads(Long userId, String sort, Integer limit) {
+    public UnreadViewResponse getUnreads(Long userId, String sort, Integer limit) {
         UnreadSortOption sortOption = UnreadSortOption.fromString(sort);
         int messageLimit = normalizeLimit(limit);
 
@@ -184,13 +184,13 @@ public class UnreadsViewService {
     /**
      * Apply limit and build final response.
      */
-    private UnreadsViewResponse applyLimitAndBuildResponse(List<UnreadMessageResponse> unreadMessages, int messageLimit) {
+    private UnreadViewResponse applyLimitAndBuildResponse(List<UnreadMessageResponse> unreadMessages, int messageLimit) {
         int totalCount = unreadMessages.size();
         if (unreadMessages.size() > messageLimit) {
             unreadMessages = unreadMessages.subList(0, messageLimit);
         }
 
-        return UnreadsViewResponse.builder()
+        return UnreadViewResponse.builder()
                 .unreadMessages(unreadMessages)
                 .totalCount(totalCount)
                 .build();
@@ -199,8 +199,8 @@ public class UnreadsViewService {
     /**
      * Build empty response.
      */
-    private UnreadsViewResponse buildEmptyResponse() {
-        return UnreadsViewResponse.builder()
+    private UnreadViewResponse buildEmptyResponse() {
+        return UnreadViewResponse.builder()
                 .unreadMessages(Collections.emptyList())
                 .totalCount(0)
                 .build();

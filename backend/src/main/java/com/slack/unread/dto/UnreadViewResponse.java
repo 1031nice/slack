@@ -11,7 +11,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UnreadsViewResponse {
+public class UnreadViewResponse {
     private List<UnreadMessageResponse> unreadMessages;
     private int totalCount;
 }
