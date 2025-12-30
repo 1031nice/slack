@@ -1,15 +1,12 @@
 package com.slack.readreceipt.service;
 
-import com.slack.config.KafkaConfig;
-import com.slack.channel.domain.Channel;
-import com.slack.readreceipt.domain.ReadReceipt;
-import com.slack.user.domain.User;
-import com.slack.readreceipt.dto.ReadReceiptEvent;
-import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.channel.repository.ChannelMemberRepository;
-import com.slack.channel.repository.ChannelRepository;
+import com.slack.common.service.PermissionService;
+import com.slack.config.KafkaConfig;
+import com.slack.readreceipt.dto.ReadReceiptEvent;
 import com.slack.readreceipt.repository.ReadReceiptRepository;
-import com.slack.user.repository.UserRepository;
+import com.slack.websocket.dto.WebSocketMessage;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -17,9 +14,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import com.slack.common.service.PermissionService;
 import org.springframework.transaction.annotation.Transactional;
-import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.List;
 import java.util.Queue;
@@ -42,8 +37,6 @@ public class ReadReceiptService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
     private final ReadReceiptRepository readReceiptRepository;
-    private final UserRepository userRepository;
-    private final ChannelRepository channelRepository;
     private final PermissionService permissionService;
     private final KafkaTemplate<String, ReadReceiptEvent> kafkaTemplate;
     private final MeterRegistry meterRegistry;
@@ -60,8 +53,8 @@ public class ReadReceiptService {
      * 2. Broadcasts to channel members via WebSocket
      * 3. Publishes to Kafka for durable persistence (v0.4.2)
      *
-     * @param userId User ID
-     * @param channelId Channel ID
+     * @param userId            User ID
+     * @param channelId         Channel ID
      * @param lastReadTimestamp Last read timestamp (timestampId or ISO datetime)
      */
     @Transactional
@@ -91,7 +84,7 @@ public class ReadReceiptService {
      * 2. Falls back to DB if Redis miss (recovery after restart)
      * 3. Repopulates Redis on DB hit (cache warming)
      *
-     * @param userId User ID
+     * @param userId    User ID
      * @param channelId Channel ID
      * @return Last read timestamp, or null if not found
      */
@@ -126,7 +119,7 @@ public class ReadReceiptService {
      * Get all read receipts for a channel from Redis
      *
      * @param channelId Channel ID
-     * @param userId user ID requesting the read receipts
+     * @param userId    user ID requesting the read receipts
      * @return Map of userId -> lastReadTimestamp
      */
     public java.util.Map<Long, String> getChannelReadReceipts(Long channelId, Long userId) {
@@ -149,8 +142,8 @@ public class ReadReceiptService {
     /**
      * Broadcast read receipt to all channel members
      *
-     * @param userId User ID who read the messages
-     * @param channelId Channel ID
+     * @param userId            User ID who read the messages
+     * @param channelId         Channel ID
      * @param lastReadTimestamp Last read timestamp
      */
     private void broadcastReadReceipt(Long userId, Long channelId, String lastReadTimestamp) {
@@ -173,8 +166,8 @@ public class ReadReceiptService {
      * Uses fallback queue for resilience against Kafka failures
      * Kafka consumer will batch process events and persist to DB
      *
-     * @param userId User ID
-     * @param channelId Channel ID
+     * @param userId            User ID
+     * @param channelId         Channel ID
      * @param lastReadTimestamp Last read timestamp
      */
     private void publishToKafka(Long userId, Long channelId, String lastReadTimestamp) {

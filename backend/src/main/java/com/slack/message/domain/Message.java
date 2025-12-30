@@ -9,8 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "messages")
@@ -36,12 +34,6 @@ public class Message {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_message_id")
     private Message parentMessage;
-
-    @OneToMany(mappedBy = "parentMessage", fetch = FetchType.LAZY)
-    private List<Message> replies = new ArrayList<>();
-
-    @OneToMany(mappedBy = "message", fetch = FetchType.LAZY)
-    private List<Reaction> reactions = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
