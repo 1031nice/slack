@@ -26,6 +26,7 @@ Each ADR follows this structure:
 | [0005](./0005-explicit-authorization-over-preauthorize.md) | Explicit Authorization Over @PreAuthorize | Accepted | 2024-12-15 |
 | [0006](./0006-event-based-architecture-for-distributed-messaging.md) | Event-Based Architecture for Distributed Messaging | Proposed | 2025-12-20 |
 | [0007](./0007-kafka-batching-for-read-receipt-persistence.md) | Kafka-Based Batching for Read Receipt Persistence | Proposed | 2025-12-26 |
+| [0008](./0008-message-ordering-in-distributed-systems.md) | Message Ordering in Distributed Chat Systems | Proposed | 2025-12-31 |
 
 ## Creating a New ADR
 
