@@ -143,11 +143,11 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(channelRepository.findById(CHANNEL_ID_2)).thenReturn(Optional.of(channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
+                .thenReturn(Arrays.asList(channel1, channel2));
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true))
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true, anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -170,11 +170,11 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(channelRepository.findById(CHANNEL_ID_2)).thenReturn(Optional.of(channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, false))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
+                .thenReturn(Arrays.asList(channel1, channel2));
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, false, anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, false))
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, false, anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -197,11 +197,11 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(channelRepository.findById(CHANNEL_ID_2)).thenReturn(Optional.of(channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
+                .thenReturn(Arrays.asList(channel1, channel2));
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true))
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true, anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -224,8 +224,9 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1)))
+                .thenReturn(Arrays.asList(channel1));
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
                 .thenReturn(Set.of("1000", "2000", "3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -274,8 +275,9 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1)))
+                .thenReturn(Arrays.asList(channel1));
+        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
                 .thenReturn(Set.of("1000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1));
@@ -286,7 +288,7 @@ class UnreadsViewServiceTest {
         // then
         assertThat(response.getTotalCount()).isEqualTo(1);
         assertThat(response.getUnreadMessages()).hasSize(1);
-        verify(unreadCountService).getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true); // newest (descending)
+        verify(unreadCountService).getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(true), anyInt()); // newest (descending)
     }
 
     @Test
@@ -295,8 +297,9 @@ class UnreadsViewServiceTest {
         // given
         when(channelMemberRepository.findChannelIdsByUserId(USER_ID))
                 .thenReturn(Arrays.asList(CHANNEL_ID_1));
-        when(channelRepository.findById(CHANNEL_ID_1)).thenReturn(Optional.of(channel1));
-        when(unreadCountService.getUnreadMessageIdsSorted(anyLong(), anyLong(), anyBoolean()))
+        when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1)))
+                .thenReturn(Arrays.asList(channel1));
+        when(unreadCountService.getUnreadMessageIdsSorted(anyLong(), anyLong(), anyBoolean(), anyInt()))
                 .thenReturn(Set.of("1000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1));
