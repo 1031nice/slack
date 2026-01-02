@@ -3,7 +3,7 @@ package com.slack.unread.service;
 import com.slack.channel.domain.Channel;
 import com.slack.message.domain.Message;
 import com.slack.user.domain.User;
-import com.slack.unread.dto.UnreadsViewResponse;
+import com.slack.unread.dto.UnreadViewResponse;
 import com.slack.channel.repository.ChannelMemberRepository;
 import com.slack.channel.repository.ChannelRepository;
 import com.slack.message.repository.MessageRepository;
@@ -47,7 +47,7 @@ class UnreadsViewServiceTest {
     private com.slack.unread.mapper.UnreadMapper unreadMapper;
 
     @InjectMocks
-    private UnreadsViewService unreadsViewService;
+    private UnreadViewService unreadsViewService;
 
     private static final Long USER_ID = 1L;
     private static final Long CHANNEL_ID_1 = 100L;
@@ -153,7 +153,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1, message2, message3));
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(3);
@@ -180,7 +180,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1, message2, message3));
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "oldest", 50);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "oldest", 50);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(3);
@@ -207,7 +207,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1, message2, message3));
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "channel", 50);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "channel", 50);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(3);
@@ -231,7 +231,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1, message2, message3));
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 2);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 2);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(3); // total count includes all
@@ -246,7 +246,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Collections.emptyList());
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(0);
@@ -261,7 +261,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Collections.emptyList());
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, "newest", 50);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(0);
@@ -281,7 +281,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1));
 
         // when
-        UnreadsViewResponse response = unreadsViewService.getUnreads(USER_ID, null, null);
+        UnreadViewResponse response = unreadsViewService.getUnreads(USER_ID, null, null);
 
         // then
         assertThat(response.getTotalCount()).isEqualTo(1);
@@ -302,7 +302,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(message1));
 
         // when
-        UnreadsViewService service = new UnreadsViewService(
+        UnreadViewService service = new UnreadViewService(
                 channelMemberRepository,
                 unreadCountService,
                 messageRepository,
@@ -310,7 +310,7 @@ class UnreadsViewServiceTest {
                 workspaceMemberRepository,
                 unreadMapper
         );
-        UnreadsViewResponse response = service.getUnreads(USER_ID, "newest", 500); // exceeds MAX_LIMIT (200)
+        UnreadViewResponse response = service.getUnreads(USER_ID, "newest", 500); // exceeds MAX_LIMIT (200)
 
         // then
         // Should not throw exception and should limit to MAX_LIMIT

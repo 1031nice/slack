@@ -2,8 +2,8 @@ package com.slack.unread.controller;
 
 import com.slack.user.domain.User;
 import com.slack.unread.dto.UnreadMessageResponse;
-import com.slack.unread.dto.UnreadsViewResponse;
-import com.slack.unread.service.UnreadsViewService;
+import com.slack.unread.dto.UnreadViewResponse;
+import com.slack.unread.service.UnreadViewService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,15 +28,15 @@ import static org.mockito.Mockito.*;
 class UnreadsControllerTest {
 
     @Mock
-    private UnreadsViewService unreadsViewService;
+    private UnreadViewService unreadsViewService;
 
     @Mock
     private User user;
 
     @InjectMocks
-    private UnreadsController unreadsController;
+    private UnreadController unreadsController;
 
-    private UnreadsViewResponse testResponse;
+    private UnreadViewResponse testResponse;
 
     @BeforeEach
     void setUp() {
@@ -49,7 +49,7 @@ class UnreadsControllerTest {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        testResponse = UnreadsViewResponse.builder()
+        testResponse = UnreadViewResponse.builder()
                 .unreadMessages(Arrays.asList(unreadMessage))
                 .totalCount(1)
                 .build();
@@ -63,7 +63,7 @@ class UnreadsControllerTest {
         lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
-        ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, null, user);
+        ResponseEntity<UnreadViewResponse> response = unreadsController.getUnreads(null, null, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -81,7 +81,7 @@ class UnreadsControllerTest {
         lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
-        ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads("oldest", null, user);
+        ResponseEntity<UnreadViewResponse> response = unreadsController.getUnreads("oldest", null, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -96,7 +96,7 @@ class UnreadsControllerTest {
         lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
-        ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, 100, user);
+        ResponseEntity<UnreadViewResponse> response = unreadsController.getUnreads(null, 100, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -111,7 +111,7 @@ class UnreadsControllerTest {
         lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(testResponse);
 
         // when
-        ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads("channel", 50, user);
+        ResponseEntity<UnreadViewResponse> response = unreadsController.getUnreads("channel", 50, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -123,14 +123,14 @@ class UnreadsControllerTest {
     void getUnreads_NoUnreads_Success() {
         // given
         when(user.getId()).thenReturn(1L);
-        UnreadsViewResponse emptyResponse = UnreadsViewResponse.builder()
+        UnreadViewResponse emptyResponse = UnreadViewResponse.builder()
                 .unreadMessages(Collections.emptyList())
                 .totalCount(0)
                 .build();
         lenient().when(unreadsViewService.getUnreads(anyLong(), any(), any())).thenReturn(emptyResponse);
 
         // when
-        ResponseEntity<UnreadsViewResponse> response = unreadsController.getUnreads(null, null, user);
+        ResponseEntity<UnreadViewResponse> response = unreadsController.getUnreads(null, null, user);
 
         // then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
