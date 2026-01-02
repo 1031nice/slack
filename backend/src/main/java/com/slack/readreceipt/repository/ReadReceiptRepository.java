@@ -43,4 +43,14 @@ public interface ReadReceiptRepository extends JpaRepository<ReadReceipt, Long> 
      * @return List of potentially stale read receipts
      */
     List<ReadReceipt> findByUpdatedAtBefore(LocalDateTime threshold);
+
+    /**
+     * Batch query to find read receipts for multiple users in a channel
+     * Prevents N+1 query issue when fetching all channel read receipts
+     *
+     * @param channelId Channel ID
+     * @param userIds List of User IDs
+     * @return List of ReadReceipts matching the criteria
+     */
+    List<ReadReceipt> findByChannelIdAndUserIdIn(Long channelId, List<Long> userIds);
 }

@@ -3,12 +3,14 @@ package com.slack.readreceipt.service;
 import com.slack.channel.repository.ChannelMemberRepository;
 import com.slack.common.service.PermissionService;
 import com.slack.config.KafkaConfig;
+import com.slack.readreceipt.domain.ReadReceipt;
 import com.slack.readreceipt.dto.ReadReceiptEvent;
 import com.slack.readreceipt.repository.ReadReceiptRepository;
 import com.slack.websocket.dto.WebSocketMessage;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -16,8 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -117,23 +118,70 @@ public class ReadReceiptService {
 
     /**
      * Get all read receipts for a channel from Redis
+     * Optimized to avoid N+1 query issue by using Redis Pipeline and batch DB query
+     * Pipeline approach ensures compatibility with Redis Cluster (vs MGET)
      *
      * @param channelId Channel ID
      * @param userId    user ID requesting the read receipts
      * @return Map of userId -> lastReadTimestamp
      */
-    public java.util.Map<Long, String> getChannelReadReceipts(Long channelId, Long userId) {
+    public Map<Long, String> getChannelReadReceipts(Long channelId, Long userId) {
         // Authorization: must have channel access
         permissionService.requireChannelAccess(userId, channelId);
 
         List<Long> memberIds = channelMemberRepository.findUserIdsByChannelId(channelId);
+        if (memberIds.isEmpty()) {
+            return new HashMap<>();
+        }
 
-        java.util.Map<Long, String> readReceipts = new java.util.HashMap<>();
-        for (Long memberId : memberIds) {
-            String timestamp = getReadReceipt(memberId, channelId);
-            if (timestamp != null) {
-                readReceipts.put(memberId, timestamp);
+        // 1. Build Redis keys for all members
+        List<String> redisKeys = memberIds.stream()
+                .map(memberId -> buildRedisKey(memberId, channelId))
+                .toList();
+
+        // 2. Batch fetch from Redis using Pipeline (Cluster-safe)
+        List<Object> redisValues = redisTemplate.executePipelined(
+                (RedisCallback<Object>) connection -> {
+                    for (String key : redisKeys) {
+                        connection.stringCommands().get(key.getBytes());
+                    }
+                    return null;
+                });
+
+        Map<Long, String> readReceipts = new HashMap<>();
+        List<Long> cacheMisses = new ArrayList<>();
+
+        // 3. Process Redis results
+        for (int i = 0; i < memberIds.size(); i++) {
+            Long memberId = memberIds.get(i);
+            Object value = redisValues.get(i);
+
+            if (value != null) {
+                readReceipts.put(memberId, value.toString());
+            } else {
+                cacheMisses.add(memberId);
             }
+        }
+
+        // 4. Batch fetch cache misses from DB (single query instead of N queries)
+        if (!cacheMisses.isEmpty()) {
+            log.debug("Redis cache misses for {} members, fetching from DB", cacheMisses.size());
+
+            List<ReadReceipt> dbReceipts = readReceiptRepository.findByChannelIdAndUserIdIn(channelId, cacheMisses);
+
+            // 5. Repopulate Redis and result map
+            for (ReadReceipt receipt : dbReceipts) {
+                String timestamp = receipt.getLastReadTimestamp();
+                Long memberId = receipt.getUser().getId();
+
+                readReceipts.put(memberId, timestamp);
+
+                // Cache warming
+                String redisKey = buildRedisKey(memberId, channelId);
+                redisTemplate.opsForValue().set(redisKey, timestamp);
+            }
+
+            log.debug("Repopulated Redis from DB: {} read receipts", dbReceipts.size());
         }
 
         return readReceipts;

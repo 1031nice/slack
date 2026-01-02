@@ -214,8 +214,10 @@ class ReadReceiptServiceTest {
         // given
         List<Long> memberIds = Arrays.asList(1L, 2L);
         when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
-        when(valueOperations.get("read_receipt:1:100")).thenReturn("1735046400000050");
-        when(valueOperations.get("read_receipt:2:100")).thenReturn("1735046400000045");
+
+        // Mock executePipelined to return Redis values
+        when(redisTemplate.executePipelined(any(org.springframework.data.redis.core.RedisCallback.class)))
+                .thenReturn(Arrays.asList("1735046400000050", "1735046400000045"));
 
         // when
         Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
@@ -232,9 +234,10 @@ class ReadReceiptServiceTest {
         // given
         List<Long> memberIds = Arrays.asList(1L, 2L, 3L);
         when(channelMemberRepository.findUserIdsByChannelId(CHANNEL_ID)).thenReturn(memberIds);
-        when(valueOperations.get("read_receipt:1:100")).thenReturn("1735046400000050");
-        when(valueOperations.get("read_receipt:2:100")).thenReturn(null);
-        when(valueOperations.get("read_receipt:3:100")).thenReturn("1735046400000030");
+
+        // Mock executePipelined: user 2 has no receipt (null)
+        when(redisTemplate.executePipelined(any(org.springframework.data.redis.core.RedisCallback.class)))
+                .thenReturn(Arrays.asList("1735046400000050", null, "1735046400000030"));
 
         // when
         Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(CHANNEL_ID, USER_ID);
