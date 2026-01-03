@@ -1,12 +1,12 @@
 package com.slack.unread.service;
 
 import com.slack.channel.domain.Channel;
-import com.slack.message.domain.Message;
-import com.slack.user.domain.User;
-import com.slack.unread.dto.UnreadViewResponse;
 import com.slack.channel.repository.ChannelMemberRepository;
 import com.slack.channel.repository.ChannelRepository;
+import com.slack.message.domain.Message;
 import com.slack.message.repository.MessageRepository;
+import com.slack.unread.dto.UnreadViewResponse;
+import com.slack.user.domain.User;
 import com.slack.workspace.repository.WorkspaceMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,43 +18,37 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("UnreadsViewService 단위 테스트")
-class UnreadsViewServiceTest {
-
-    @Mock
-    private ChannelMemberRepository channelMemberRepository;
-
-    @Mock
-    private UnreadCountService unreadCountService;
-
-    @Mock
-    private MessageRepository messageRepository;
-
-    @Mock
-    private ChannelRepository channelRepository;
-
-    @Mock
-    private WorkspaceMemberRepository workspaceMemberRepository;
-
-    @Mock
-    private com.slack.unread.mapper.UnreadMapper unreadMapper;
-
-    @InjectMocks
-    private UnreadViewService unreadsViewService;
+@DisplayName("UnreadViewService 단위 테스트")
+class UnreadViewServiceTest {
 
     private static final Long USER_ID = 1L;
     private static final Long CHANNEL_ID_1 = 100L;
     private static final Long CHANNEL_ID_2 = 200L;
     private static final String CHANNEL_NAME_1 = "general";
     private static final String CHANNEL_NAME_2 = "random";
-
+    @Mock
+    private ChannelMemberRepository channelMemberRepository;
+    @Mock
+    private UnreadCountService unreadCountService;
+    @Mock
+    private MessageRepository messageRepository;
+    @Mock
+    private ChannelRepository channelRepository;
+    @Mock
+    private WorkspaceMemberRepository workspaceMemberRepository;
+    @Mock
+    private com.slack.unread.mapper.UnreadMapper unreadMapper;
+    @InjectMocks
+    private UnreadViewService unreadsViewService;
     private Channel channel1;
     private Channel channel2;
     private Message message1;
@@ -145,9 +139,9 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
         when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
                 .thenReturn(Arrays.asList(channel1, channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(true), anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_2), eq(true), anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -172,9 +166,9 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
         when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
                 .thenReturn(Arrays.asList(channel1, channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, false, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(false), anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, false, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_2), eq(false), anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -199,9 +193,9 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2));
         when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1, CHANNEL_ID_2)))
                 .thenReturn(Arrays.asList(channel1, channel2));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(true), anyInt()))
                 .thenReturn(Set.of("1000", "2000"));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_2, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_2), eq(true), anyInt()))
                 .thenReturn(Set.of("3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -226,7 +220,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(CHANNEL_ID_1));
         when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1)))
                 .thenReturn(Arrays.asList(channel1));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(true), anyInt()))
                 .thenReturn(Set.of("1000", "2000", "3000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1, message2, message3));
@@ -277,7 +271,7 @@ class UnreadsViewServiceTest {
                 .thenReturn(Arrays.asList(CHANNEL_ID_1));
         when(channelRepository.findAllById(Arrays.asList(CHANNEL_ID_1)))
                 .thenReturn(Arrays.asList(channel1));
-        when(unreadCountService.getUnreadMessageIdsSorted(USER_ID, CHANNEL_ID_1, true, anyInt()))
+        when(unreadCountService.getUnreadMessageIdsSorted(eq(USER_ID), eq(CHANNEL_ID_1), eq(true), anyInt()))
                 .thenReturn(Set.of("1000"));
         when(messageRepository.findAllById(anySet()))
                 .thenReturn(Arrays.asList(message1));
