@@ -4,13 +4,11 @@ import com.slack.user.domain.User;
 import com.slack.message.dto.MessageCreateRequest;
 import com.slack.message.dto.MessageResponse;
 import com.slack.websocket.dto.WebSocketMessage;
-import com.slack.auth.service.AuthenticationExtractor;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import com.slack.message.service.MessageService;
 import com.slack.user.service.UserService;
@@ -27,15 +25,16 @@ public class WebSocketMessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final RedisMessagePublisher redisMessagePublisher;
     private final ReadReceiptService readReceiptService;
-    private final AuthenticationExtractor authenticationExtractor;
 
     /**
      * Processes incoming WebSocket message and broadcasts to channel.
+     *
+     * @param message WebSocket message
+     * @param authUserId Authenticated user's auth ID
      */
-    public WebSocketMessage handleIncomingMessage(WebSocketMessage message, Authentication authentication) {
+    public WebSocketMessage handleIncomingMessage(WebSocketMessage message, String authUserId) {
         log.info("Received message: channelId={}, content={}", message.getChannelId(), message.getContent());
 
-        String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
 
         // Messages are ordered by timestampId (generated in MessageService)
@@ -55,14 +54,17 @@ public class WebSocketMessageService {
 
     /**
      * Sends error message to user.
+     *
+     * @param username Username for error destination
+     * @param errorMessage Error message content
      */
-    public void sendErrorMessage(Authentication authentication, String errorMessage) {
+    public void sendErrorMessage(String username, String errorMessage) {
         WebSocketMessage error = WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.ERROR)
                 .content("Failed to send message: " + errorMessage)
                 .build();
 
-        String userDestination = getUserDestination(authentication, "errors");
+        String userDestination = "/queue/errors." + username;
         messagingTemplate.convertAndSend(userDestination, error);
     }
 
@@ -75,8 +77,12 @@ public class WebSocketMessageService {
 
     /**
      * Resends messages missed since last timestamp on reconnection.
+     *
+     * @param channelId Channel ID
+     * @param lastTimestamp Last received timestamp
+     * @param authUserId Authenticated user's auth ID
      */
-    public void resendMissedMessagesByTimestamp(Long channelId, String lastTimestamp, Authentication authentication) {
+    public void resendMissedMessagesByTimestamp(Long channelId, String lastTimestamp, String authUserId) {
         log.info("Resending missed messages for channel {} after timestamp {}", channelId, lastTimestamp);
 
         List<MessageResponse> missedMessages = messageService.getMessagesAfterTimestamp(channelId, lastTimestamp);
@@ -88,7 +94,7 @@ public class WebSocketMessageService {
 
         log.info("Found {} missed messages for channel {}", missedMessages.size(), channelId);
 
-        String userDestination = getUserDestination(authentication, "resend");
+        String userDestination = "/queue/resend." + authUserId;
 
         for (MessageResponse msg : missedMessages) {
             WebSocketMessage webSocketMessage = toWebSocketMessage(msg);
@@ -98,13 +104,15 @@ public class WebSocketMessageService {
 
     /**
      * Handles READ message to update user's read receipt for channel.
+     *
+     * @param message WebSocket message with channelId and timestamp
+     * @param authUserId Authenticated user's auth ID
      */
-    public void handleRead(WebSocketMessage message, Authentication authentication) {
+    public void handleRead(WebSocketMessage message, String authUserId) {
         if (!validateMessageType(message, WebSocketMessage.MessageType.READ, "handleRead")) {
             return;
         }
 
-        String authUserId = extractAndValidateAuthUserId(authentication);
         User user = userService.findByAuthUserId(authUserId);
 
         // Use createdAt (timestamp) for read receipt
@@ -124,14 +132,6 @@ public class WebSocketMessageService {
         );
     }
 
-    private String extractAndValidateAuthUserId(Authentication authentication) {
-        String authUserId = authenticationExtractor.extractAuthUserId(authentication);
-        if (authUserId == null) {
-            throw new IllegalArgumentException("Authentication required");
-        }
-        return authUserId;
-    }
-
     private WebSocketMessage toWebSocketMessage(MessageResponse message) {
         return WebSocketMessage.builder()
                 .type(WebSocketMessage.MessageType.MESSAGE)
@@ -142,12 +142,6 @@ public class WebSocketMessageService {
                 .createdAt(message.getCreatedAt().toString())
                 .timestampId(message.getTimestampId())
                 .build();
-    }
-
-    private String getUserDestination(Authentication authentication, String queueType) {
-        return authentication != null
-                ? "/queue/" + queueType + "." + authentication.getName()
-                : "/queue/" + queueType;
     }
 
     private boolean validateMessageType(WebSocketMessage message,

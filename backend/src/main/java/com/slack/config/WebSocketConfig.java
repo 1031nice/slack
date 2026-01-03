@@ -20,7 +20,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -112,11 +111,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private Authentication authenticateProductionMode(String token) {
         Jwt jwt = jwtDecoder.decode(token);
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        Authentication authentication = converter.convert(jwt);
+        String authUserId = jwt.getSubject();
+        User user = userService.findByAuthUserId(authUserId);
 
-        log.debug("WebSocket OAuth2 authentication successful: {}", authentication.getName());
-        return authentication;
+        log.debug("WebSocket OAuth2 authentication successful: {}", authUserId);
+        return new UsernamePasswordAuthenticationToken(user, jwt, Collections.emptyList());
     }
 }
 

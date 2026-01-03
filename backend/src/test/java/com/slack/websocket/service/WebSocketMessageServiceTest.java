@@ -4,7 +4,6 @@ import com.slack.user.domain.User;
 import com.slack.message.dto.MessageCreateRequest;
 import com.slack.message.dto.MessageResponse;
 import com.slack.websocket.dto.WebSocketMessage;
-import com.slack.auth.service.AuthenticationExtractor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +17,6 @@ import com.slack.user.service.UserService;
 import com.slack.common.service.RedisMessagePublisher;
 import com.slack.readreceipt.service.ReadReceiptService;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -27,6 +24,8 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -50,16 +49,7 @@ class WebSocketMessageServiceTest {
     private ReadReceiptService readReceiptService;
 
     @Mock
-    private AuthenticationExtractor authenticationExtractor;
-
-    @Mock
     private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
-
-    @Mock
-    private Authentication authentication;
-
-    @Mock
-    private Jwt jwt;
 
     @InjectMocks
     private WebSocketMessageService webSocketMessageService;
@@ -106,13 +96,12 @@ class WebSocketMessageServiceTest {
     @DisplayName("메시지를 받아서 처리하고 브로드캐스팅한다")
     void handleIncomingMessage_Success() {
         // given
-        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-123");
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenReturn(testMessageResponse);
 
         // when
-        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication);
+        WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, "auth-123");
 
         // then
         // UserService 호출 확인
@@ -145,47 +134,14 @@ class WebSocketMessageServiceTest {
     }
 
     @Test
-    @DisplayName("인증 정보가 없으면 예외가 발생한다")
-    void handleIncomingMessage_NoAuthentication() {
-        // given
-        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn(null);
-
-        // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Authentication required");
-
-        verify(userService, never()).findByAuthUserId(anyString());
-        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
-        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
-    }
-
-    @Test
-    @DisplayName("JWT가 아닌 Principal이면 예외가 발생한다")
-    void handleIncomingMessage_InvalidPrincipal() {
-        // given
-        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn(null);
-
-        // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Authentication required");
-
-        verify(userService, never()).findByAuthUserId(anyString());
-        verify(messageService, never()).createMessage(anyLong(), any(MessageCreateRequest.class));
-        verify(redisMessagePublisher, never()).publish(any(WebSocketMessage.class));
-    }
-
-    @Test
     @DisplayName("User를 찾지 못하면 예외가 발생한다")
     void handleIncomingMessage_UserNotFound() {
         // given
-        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-999");
         when(userService.findByAuthUserId("auth-999"))
                 .thenThrow(new RuntimeException("User not found"));
 
         // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
+        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, "auth-999"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("User not found");
 
@@ -197,13 +153,12 @@ class WebSocketMessageServiceTest {
     @DisplayName("메시지 생성 실패 시 예외가 발생한다")
     void handleIncomingMessage_MessageCreationFails() {
         // given
-        when(authenticationExtractor.extractAuthUserId(authentication)).thenReturn("auth-123");
         when(userService.findByAuthUserId("auth-123")).thenReturn(testUser);
         when(messageService.createMessage(anyLong(), any(MessageCreateRequest.class)))
                 .thenThrow(new RuntimeException("Database error"));
 
         // when & then
-        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, authentication))
+        assertThatThrownBy(() -> webSocketMessageService.handleIncomingMessage(testWebSocketMessage, "auth-123"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Database error");
 
@@ -215,35 +170,14 @@ class WebSocketMessageServiceTest {
 
     @Test
     @DisplayName("에러 메시지를 특정 사용자에게 전송한다")
-    void sendErrorMessage_WithAuthentication() {
-        // given
-        when(authentication.getName()).thenReturn("auth-123");
-
+    void sendErrorMessage_WithUsername() {
         // when
-        webSocketMessageService.sendErrorMessage(authentication, "Test error");
+        webSocketMessageService.sendErrorMessage("auth-123", "Test error");
 
         // then
         ArgumentCaptor<WebSocketMessage> errorCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(messagingTemplate, times(1)).convertAndSend(
                 eq("/queue/errors.auth-123"),
-                errorCaptor.capture()
-        );
-
-        WebSocketMessage errorMessage = errorCaptor.getValue();
-        assertThat(errorMessage.getType()).isEqualTo(WebSocketMessage.MessageType.ERROR);
-        assertThat(errorMessage.getContent()).isEqualTo("Failed to send message: Test error");
-    }
-
-    @Test
-    @DisplayName("인증 정보가 없을 때 에러 메시지를 전송한다")
-    void sendErrorMessage_WithoutAuthentication() {
-        // when
-        webSocketMessageService.sendErrorMessage(null, "Test error");
-
-        // then
-        ArgumentCaptor<WebSocketMessage> errorCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
-        verify(messagingTemplate, times(1)).convertAndSend(
-                eq("/queue/errors"),
                 errorCaptor.capture()
         );
 

@@ -1,12 +1,13 @@
 package com.slack.websocket.controller;
 
+import com.slack.user.domain.User;
 import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.websocket.service.WebSocketMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 
 @Slf4j
@@ -19,17 +20,17 @@ public class WebSocketController {
     /**
      * 클라이언트로부터 메시지를 받아서 처리합니다.
      * 클라이언트는 /app/message.send로 메시지를 보냅니다.
-     * 
+     *
      * @param message WebSocket 메시지
-     * @param authentication 인증 정보 (JWT에서 추출)
+     * @param user 인증된 사용자
      */
     @MessageMapping("/message.send")
-    public void handleMessage(@Payload WebSocketMessage message, Authentication authentication) {
+    public void handleMessage(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
         try {
-            webSocketMessageService.handleIncomingMessage(message, authentication);
+            webSocketMessageService.handleIncomingMessage(message, user.getAuthUserId());
         } catch (Exception e) {
             log.error("Error handling message", e);
-            webSocketMessageService.sendErrorMessage(authentication, e.getMessage());
+            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), e.getMessage());
         }
     }
 
@@ -38,10 +39,10 @@ public class WebSocketController {
      * 클라이언트는 /app/message.resend로 재전송 요청을 보냅니다.
      *
      * @param message 재전송 요청 WebSocket 메시지 (channelId + createdAt)
-     * @param authentication 인증 정보 (JWT에서 추출)
+     * @param user 인증된 사용자
      */
     @MessageMapping("/message.resend")
-    public void handleResend(@Payload WebSocketMessage message, Authentication authentication) {
+    public void handleResend(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
         try {
             if (message.getChannelId() == null) {
                 log.warn("Invalid resend request: channelId is null");
@@ -57,11 +58,11 @@ public class WebSocketController {
             webSocketMessageService.resendMissedMessagesByTimestamp(
                     message.getChannelId(),
                     message.getCreatedAt(),
-                    authentication
+                    user.getAuthUserId()
             );
         } catch (Exception e) {
             log.error("Error handling resend request", e);
-            webSocketMessageService.sendErrorMessage(authentication, "Failed to resend messages: " + e.getMessage());
+            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), "Failed to resend messages: " + e.getMessage());
         }
     }
 
@@ -70,20 +71,20 @@ public class WebSocketController {
      * 클라이언트는 /app/message.read로 읽음 처리를 보냅니다.
      *
      * @param message 읽음 처리 WebSocket 메시지 (channelId, createdAt 포함)
-     * @param authentication 인증 정보 (JWT에서 추출)
+     * @param user 인증된 사용자
      */
     @MessageMapping("/message.read")
-    public void handleRead(@Payload WebSocketMessage message, Authentication authentication) {
+    public void handleRead(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
         try {
             if (message.getChannelId() == null) {
                 log.warn("Invalid read request: channelId is null");
                 return;
             }
 
-            webSocketMessageService.handleRead(message, authentication);
+            webSocketMessageService.handleRead(message, user.getAuthUserId());
         } catch (Exception e) {
             log.error("Error handling read request", e);
-            webSocketMessageService.sendErrorMessage(authentication, "Failed to process read receipt: " + e.getMessage());
+            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), "Failed to process read receipt: " + e.getMessage());
         }
     }
 }
