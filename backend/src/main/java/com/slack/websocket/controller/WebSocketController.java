@@ -1,5 +1,7 @@
 package com.slack.websocket.controller;
 
+import com.slack.common.exception.WrongServerException;
+import com.slack.common.service.ChannelRoutingService;
 import com.slack.user.domain.User;
 import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.websocket.service.WebSocketMessageService;
@@ -16,10 +18,14 @@ import org.springframework.stereotype.Controller;
 public class WebSocketController {
 
     private final WebSocketMessageService webSocketMessageService;
+    private final ChannelRoutingService channelRoutingService;
 
     /**
      * 클라이언트로부터 메시지를 받아서 처리합니다.
      * 클라이언트는 /app/message.send로 메시지를 보냅니다.
+     *
+     * Channel Partitioning: This server validates that it is responsible for
+     * the given channel. If not, throws WrongServerException to alert the client.
      *
      * @param message WebSocket 메시지
      * @param user 인증된 사용자
@@ -27,7 +33,22 @@ public class WebSocketController {
     @MessageMapping("/message.send")
     public void handleMessage(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
         try {
+            // Validate that this server should handle this channel
+            if (message.getChannelId() != null && !channelRoutingService.isResponsibleFor(message.getChannelId())) {
+                int expectedServer = channelRoutingService.getServerForChannel(message.getChannelId());
+                int actualServer = channelRoutingService.getServerId();
+
+                log.warn("Message for channel {} routed to wrong server. Expected: {}, Actual: {}",
+                    message.getChannelId(), expectedServer, actualServer);
+
+                throw new WrongServerException(message.getChannelId(), expectedServer, actualServer);
+            }
+
             webSocketMessageService.handleIncomingMessage(message, user.getAuthUserId());
+        } catch (WrongServerException e) {
+            log.error("Wrong server routing error", e);
+            webSocketMessageService.sendErrorMessage(user.getAuthUserId(),
+                "This message should be handled by server " + e.getExpectedServerId() + ". Please reconnect.");
         } catch (Exception e) {
             log.error("Error handling message", e);
             webSocketMessageService.sendErrorMessage(user.getAuthUserId(), e.getMessage());
