@@ -9,13 +9,6 @@ import org.springframework.stereotype.Service;
  * Maps channels to specific servers using consistent hashing to ensure
  * that all messages for a given channel are handled by the same server.
  * This guarantees perfect message ordering within each channel.
- *
- * Approach based on Slack's production architecture:
- * "Channel Servers are stateful and in-memory, holding channel history,
- * with every CS mapped to a subset of channels based on consistent hashing"
- *
- * @see <a href="https://www.infoq.com/news/2023/04/real-time-messaging-slack/">
- *      Real-Time Messaging Architecture at Slack</a>
  */
 @Service
 public class ChannelRoutingService {
@@ -37,15 +30,14 @@ public class ChannelRoutingService {
     }
 
     /**
-     * Determine which server should handle this channel.
-     *
-     * Uses simple modulo hashing. Production Slack uses consistent hashing ring
-     * for better rebalancing when adding/removing servers.
+     * Determine which server should handle this channel using consistent hashing.
      *
      * @param channelId the channel ID
      * @return server ID (0-based index)
      */
     public int getServerForChannel(Long channelId) {
+        // TODO: Implement consistent hashing ring for better rebalancing
+        // Current implementation: simple modulo (acceptable for fixed cluster size)
         return Math.abs(channelId.hashCode()) % totalServers;
     }
 

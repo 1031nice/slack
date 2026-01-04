@@ -1,5 +1,6 @@
 package com.slack.websocket.controller;
 
+import com.slack.common.service.ChannelRoutingService;
 import com.slack.user.domain.User;
 import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.websocket.service.WebSocketMessageService;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.lang.reflect.Field;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -23,6 +25,9 @@ class WebSocketControllerTest {
 
     @Mock
     private WebSocketMessageService webSocketMessageService;
+
+    @Mock
+    private ChannelRoutingService channelRoutingService;
 
     @InjectMocks
     private WebSocketController webSocketController;
@@ -58,6 +63,7 @@ class WebSocketControllerTest {
     @DisplayName("메시지를 받아서 서비스에 위임한다")
     void handleMessage_Success() {
         // given
+        when(channelRoutingService.isResponsibleFor(anyLong())).thenReturn(true);
         when(webSocketMessageService.handleIncomingMessage(any(WebSocketMessage.class), anyString()))
                 .thenReturn(testWebSocketMessage);
 
@@ -65,6 +71,7 @@ class WebSocketControllerTest {
         webSocketController.handleMessage(testWebSocketMessage, testUser);
 
         // then
+        verify(channelRoutingService, times(1)).isResponsibleFor(1L);
         verify(webSocketMessageService, times(1)).handleIncomingMessage(testWebSocketMessage, "auth-123");
         verify(webSocketMessageService, never()).sendErrorMessage(anyString(), anyString());
     }
@@ -73,6 +80,7 @@ class WebSocketControllerTest {
     @DisplayName("서비스에서 예외가 발생하면 에러 메시지를 전송한다")
     void handleMessage_ServiceThrowsException() {
         // given
+        when(channelRoutingService.isResponsibleFor(anyLong())).thenReturn(true);
         when(webSocketMessageService.handleIncomingMessage(any(WebSocketMessage.class), anyString()))
                 .thenThrow(new IllegalArgumentException("User not found"));
 
@@ -80,6 +88,7 @@ class WebSocketControllerTest {
         webSocketController.handleMessage(testWebSocketMessage, testUser);
 
         // then
+        verify(channelRoutingService, times(1)).isResponsibleFor(1L);
         verify(webSocketMessageService, times(1)).handleIncomingMessage(testWebSocketMessage, "auth-123");
         verify(webSocketMessageService, times(1)).sendErrorMessage("auth-123", "User not found");
     }

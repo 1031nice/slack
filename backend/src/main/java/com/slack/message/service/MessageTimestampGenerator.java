@@ -4,23 +4,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Generates timestamp-based message IDs (Slack-style).
+ * Generates timestamp-based message IDs.
  *
  * Format: "{unix_timestamp_ms}.{3-digit-sequence}"
  * Example: "1736000000000.001"
  *
  * Architecture: Channel Partitioning with Consistent Hashing
- * - Each channel is handled by exactly ONE server (via Nginx hash routing)
+ * - Each channel is handled by exactly ONE server (via hash routing)
  * - That server assigns timestamps sequentially
  * - No clock skew issues (single authority per channel)
  * - Perfect ordering within channel (100% guaranteed)
- *
- * This matches Slack's production architecture:
- * "The channel server arbitrated message order - when two users hit send
- * simultaneously, the channel server decided which message came first"
- *
- * @see <a href="https://blog.bytebytego.com/p/how-slack-supports-billions-of-daily">
- *      How Slack Supports Billions of Daily Messages</a>
  */
 @Slf4j
 @Service
@@ -31,13 +24,12 @@ public class MessageTimestampGenerator {
     private static final int MAX_SEQUENCE = 999; // 3 digits: 000-999
 
     /**
-     * Generate a timestamp-based message ID (Slack-style).
+     * Generate a timestamp-based message ID.
      *
      * Thread-safe implementation handles same-millisecond messages with sequence counter.
      * Since channel partitioning guarantees single server per channel, no coordination needed.
      *
-     * @return timestamp ID in format "{timestamp_ms}.{sequence:03d}"
-     *         ASCII sortable, just like Slack's message IDs
+     * @return timestamp ID in format "{timestamp_ms}.{sequence:03d}" (ASCII sortable)
      */
     public synchronized String generateTimestampId() {
         long currentMillis = System.currentTimeMillis(); // Wall clock, not nanoTime!
@@ -67,11 +59,9 @@ public class MessageTimestampGenerator {
     }
 
     /**
-     * Format timestamp and sequence into Slack-style message ID.
+     * Format timestamp and sequence into message ID.
      *
-     * Slack's API documentation:
-     * "All messages within a single channel are guaranteed to have a unique
-     * timestamp which is ASCII sortable"
+     * Guarantees unique timestamp per channel with ASCII sortable format.
      *
      * @param milliseconds Unix timestamp in milliseconds
      * @param sequence Sequence number (0-999)
