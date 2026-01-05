@@ -13,7 +13,7 @@ Current implementation of read receipt persistence has **critical scalability an
 
 ### Issue 1: Unbounded Async Processing
 
-**Current code** (`ReadReceiptService.java:165-194`):
+Current code (`ReadReceiptService.java:165-194`):
 ```java
 @Async
 @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -23,7 +23,7 @@ protected void persistToDatabase(Long userId, Long channelId, String lastReadTim
 }
 ```
 
-**Failure scenario at scale:**
+Failure scenario at scale:
 ```
 10,000 concurrent users × 10 channels × 1 read/minute
 = 100,000 read receipt updates/minute
@@ -39,9 +39,9 @@ Result:
 
 ### Issue 2: Redis-DB Inconsistency Without Reconciliation
 
-**Current problems:**
+Current problems:
 
-1. **Order inversion**:
+1. Order inversion:
    ```
    T1: User reads message at timestamp=1000 → async DB write starts
    T2: User reads message at timestamp=2000 → async DB write starts

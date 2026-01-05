@@ -1,19 +1,19 @@
 # Architecture Decision Records (ADR)
 
-This directory contains Architecture Decision Records (ADRs) for the Slack Clone project.
+Architecture decisions for the Slack Clone project.
 
-## What is an ADR?
+## ADR Definition
 
-An ADR is a document that captures an important architectural decision made along with its context and consequences.
+A document capturing an architectural decision with its context and consequences.
 
 ## Format
 
-Each ADR follows this structure:
+Each ADR includes:
 - **Status**: Proposed | Accepted | Deprecated | Superseded
-- **Context**: What problem are we solving?
-- **Decision**: What did we decide?
-- **Consequences**: What are the trade-offs?
-- **Alternatives Considered**: What else did we consider and why not?
+- **Context**: Problem being solved
+- **Decision**: Chosen solution
+- **Consequences**: Trade-offs
+- **Alternatives Considered**: Other options and rejection reasons
 
 ## Index
 
@@ -90,30 +90,30 @@ When should it NOT be used?
 
 ## When to Write an ADR
 
-Write an ADR when you make a decision that:
-- Affects the system's architecture
-- Has significant trade-offs
-- Will be reused across the codebase
-- Might be questioned later ("Why did we do it this way?")
-- Involves technology/pattern selection
+Write an ADR for decisions that:
+- Affect system architecture
+- Have significant trade-offs
+- Get reused across the codebase
+- May need future justification
+- Involve technology/pattern selection
 
 ## When NOT to Write an ADR
 
-Don't write an ADR for:
-- Simple code refactoring
+Skip ADRs for:
+- Simple refactoring
 - Bug fixes
 - Obvious technology choices
 - Temporary workarounds
-- Implementation details that don't affect architecture
+- Implementation details without architectural impact
 
 ## Best Practices
 
-1. **Write ADRs as decisions are made**, not retroactively
-2. **Keep them concise** (1-2 pages max)
-3. **Include context** (future readers may not have the same context)
-4. **List alternatives** (shows you considered options)
-5. **Update status** when decisions change (don't delete old ADRs)
-6. **Reference in code** (`// See ADR-001 for why we use ZSET`)
+1. Write ADRs when making decisions, not retroactively
+2. Keep concise (1-2 pages max)
+3. Include context for future readers
+4. List alternatives considered
+5. Update status when decisions change (preserve old ADRs)
+6. Reference in code (`// See ADR-001 for why we use ZSET`)
 
 ## Resources
 

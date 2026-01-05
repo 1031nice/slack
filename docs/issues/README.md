@@ -2,17 +2,17 @@
 
 This directory tracks significant technical issues and implementation tasks for the Slack Clone project.
 
-## What Goes Here?
+## What Goes Here
 
-**DO create issues for:**
+Create issues for:
 
 - Architecture problems requiring investigation
 - Non-trivial bugs with distributed systems implications
 - Performance optimization opportunities
-- Technical debt that needs planning
+- Technical debt needing planning
 - Complex feature implementations
 
-**DON'T create issues for:**
+Skip issues for:
 
 - Simple bug fixes (just fix them)
 - Obvious improvements (just do them)
@@ -20,13 +20,13 @@ This directory tracks significant technical issues and implementation tasks for 
 
 ## Format
 
-Each issue should include:
+Each issue includes:
 
-- **Problem Statement**: What's wrong?
-- **Root Cause**: Why is it happening?
-- **Proposed Solutions**: What are the options?
-- **Implementation Plan**: How to fix it?
-- **Success Criteria**: How to measure success?
+- **Problem Statement**: What's wrong
+- **Root Cause**: Why it happens
+- **Proposed Solutions**: Available options
+- **Implementation Plan**: Fix approach
+- **Success Criteria**: Success measurement
 
 ## Index
 

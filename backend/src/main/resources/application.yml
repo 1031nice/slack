@@ -79,15 +79,6 @@ springdoc:
 server:
   port: 9000
   address: 0.0.0.0  # 모든 네트워크 인터페이스에 바인딩
-  # Server ID for channel routing (consistent hashing)
-  # Each server in the cluster must have a unique ID (0, 1, 2, ...)
-  id: ${SERVER_ID:0}
-
-# Cluster configuration for channel partitioning
-cluster:
-  # Total number of servers in the cluster
-  # Must match the actual number of running backend instances
-  total-servers: ${TOTAL_SERVERS:1}
 
 # Actuator Configuration
 management:

@@ -24,13 +24,13 @@ and crash recovery.
 
 ## Real-World Observation
 
-**Actual Slack behavior** (based on usage):
+Slack behavior (observed):
 
 - Reading a message on phone → Desktop shows updated count after ~5-10 seconds
 - App restart → Unread count restored correctly
 - New device login → Unread count synced from server
 
-**Conclusion**: Slack uses Redis + DB with Eventual Consistency
+Conclusion: Slack uses Redis + DB with Eventual Consistency
 
 ---
 
