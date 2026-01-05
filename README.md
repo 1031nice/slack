@@ -13,13 +13,12 @@ System design learning project. Experience distributed systems problems by build
 
 ## Current Status
 
-**In progress**: v0.4.2 - Kafka DLT reconciliation + producer fallback
+**Latest**: v0.4.2 ✅ - Kafka failure handling complete
 
 **Completed**:
-
 - Multi-server real-time messaging (Redis Pub/Sub)
 - Event-based architecture (distributed timestamp IDs)
-- Read receipts with Kafka persistence
+- Read receipts with Kafka persistence + failure handling
 - Multi-workspace RBAC
 
 ## Version History
@@ -94,17 +93,20 @@ See: [ADR-0006](./docs/adr/0006-event-based-architecture-for-distributed-messagi
 
 See: [ADR-0007](./docs/adr/0007-kafka-batching-for-read-receipt-persistence.md)
 
-### v0.4.2 - Failure Handling (current)
+### v0.4.2 - Failure Handling ✅
 
 **Problem**: What if Kafka fails? What if consumer fails?
 
 **Solution**:
+- Producer fallback queue: Buffers events during Kafka outage, retries every 5s
+- DLT consumer: Event-driven reconciliation from Redis → DB
+- Removed `@Async`: Kafka is sole durability mechanism
 
-- Producer fallback queue (Kafka outage buffer)
-- DLT consumer (event-driven reconciliation)
-- Remove `@Async` (simplify)
-
-**Status**: Testing failure modes
+**Result**:
+- Producer fallback: Kafka outage doesn't lose data
+- DLT reconciliation: Failed events recover from Redis
+- No scheduled scans: Event-driven approach (efficient)
+- Metrics: Track fallback queue size, DLT events, success/failure rates
 
 ## Next Problem
 
