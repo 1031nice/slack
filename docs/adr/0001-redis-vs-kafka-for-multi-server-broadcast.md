@@ -1,162 +1,214 @@
-# ADR-0001: Redis Pub/Sub vs Kafka for Multi-Server Broadcast
+# ADR-0001: Redis Pub/Sub for Multi-Server Broadcasting
+
+## Metadata
 
 - **Status**: Accepted ✅
 - **Date**: 2024-12-10
 - **Context**: v0.3 - Distributed Messaging
+- **Deciders**: Architecture team
+- **Related Deep Dive**: [Deep Dive 01 § 3 (Broadcast Layer Selection)](../deepdives/01-multi-server-broadcasting.md#3-broadcast-layer-selection)
 - **Related**: [GitHub Issue #1](https://github.com/1031nice/slack/issues/1)
 
 ---
 
-## Problem Statement
+## TL;DR (Executive Summary)
 
-Single-server WebSocket architecture cannot scale horizontally and has a single point of failure. Need pub/sub mechanism
-for multi-server message broadcasting.
+**Decision**: Use **Redis Pub/Sub** (not Kafka) for server-to-server message broadcasting.
+
+**Key Trade-off**: Accept fire-and-forget broadcast (no broker durability) in exchange for <1ms latency.
+
+**Rationale**: DB-first persistence already guarantees durability; we only need Redis for speed.
+
+---
 
 ## Context
 
-- Messages already persisted to PostgreSQL (DB-first)
-- WebSocket connections are stateful (users connect to specific servers)
-- Real Slack uses Redis Pub/Sub for this exact use case [[1]](#references)
+### The Problem
 
-## Proposed Solutions
+Single-server WebSocket architecture cannot scale horizontally and has a single point of failure. When a user sends a message to Server A, clients connected to Server B, C, D must receive it in real-time. We need a mechanism for servers to broadcast messages to each other.
 
-### Option 1: PostgreSQL + Redis Pub/Sub ⭐ (Chosen)
+### Constraints
 
-**Architecture:** `Client → Server → PostgreSQL (persist) → Redis Pub/Sub (broadcast) → All Servers → WebSocket`
+- **Latency budget**: <100ms end-to-end (DB write + broker + WebSocket)
+- **Durability**: Already handled by PostgreSQL via DB-first (see Deep Dive 01 § 2.2)
+- **Scale**: 10,000+ messages/sec across N servers
+- **Horizontal scaling**: Must work without O(N²) complexity
 
-**How the combination works:**
+### Success Criteria
 
-- **PostgreSQL**: Source of truth, durability, client recovery
-- **Redis Pub/Sub**: Fast real-time broadcast (sub-1ms [[2]](#references))
-- **Trade-off**: Redis failure → temporary loss of real-time, but no data loss (DB persisted)
-
-**Why this combination:**
-
-- ✅ **Durability**: PostgreSQL handles persistence
-- ✅ **Speed**: Redis handles real-time broadcast (sub-1ms [[2]](#references))
-- ✅ **Simple**: Two components, clear responsibilities
-- ✅ **Real-world**: Same as Slack [[1]](#references)
-- ✅ **Recovery**: Client queries DB for missed messages (sequence numbers)
-
-**Limitation:**
-
-- ⚠️ Redis down → no real-time broadcasting (but messages still saved to DB)
-- ⚠️ Manual recovery: Client must query DB on reconnect
+- Broadcast latency: <5ms P99 (broker propagation only)
+- 0% message loss (DB guarantees durability)
+- Linear scalability as server count increases
 
 ---
 
-### Option 2: PostgreSQL + Outbox + Kafka
+## Decision
 
-**Architecture:** `Client → Server → PostgreSQL + Outbox → Background Worker → Kafka → Consumers → WebSocket`
+### What We Chose
 
-**How the combination works:**
+**Redis Pub/Sub** for server-to-server message propagation
 
-- **PostgreSQL**: Source of truth + outbox table (transactional)
-- **Outbox Pattern**: Decouple DB commit from message delivery
-- **Kafka**: Guaranteed delivery, automatic retry, durable log
-- **Trade-off**: Higher latency (10-50ms [[3]](#references)[[4]](#references) + polling), more complexity
+```
+Client → API → [DB] → [Redis] → Gateway Servers → WebSocket
+         Step 2   Step 3    Step 4              Step 5
+         ~30ms    <1ms      <1ms                <5ms
+```
 
-**Why this combination:**
+**Visual details**: See [Deep Dive 01 § 4.1](../deepdives/01-multi-server-broadcasting.md#41-the-chosen-flow) for sequence diagram
 
-- ✅ **Durability**: PostgreSQL handles persistence
-- ✅ **Guaranteed delivery**: Kafka + Outbox ensures at-least-once
-- ✅ **Automatic retry**: No manual client recovery needed
-- ✅ **Message replay**: Can replay from Kafka offset
+### Why This Choice
 
-**Limitation:**
+| Criteria                  | Weight      | Kafka       | NATS        | **Redis**   |
+|---------------------------|-------------|-------------|-------------|-------------|
+| **Latency**               | 🔴 Critical | ❌ 10-50ms   | ✅ <1ms      | ✅ <1ms      |
+| **Broker durability**     | 🟢 N/A*     | ✅ Yes       | ⚠️ Optional  | ❌ No        |
+| **Operational complexity**| 🟡 Medium   | ❌ High      | ✅ Low       | ✅ Low       |
+| **Real-world validation** | 🟡 Medium   | LinkedIn    | Startups    | ✅ Slack     |
 
-- ⚠️ Higher latency: 10-50ms [[3]](#references)[[4]](#references) + outbox polling (1+ sec total)
-- ⚠️ More complex: Outbox table, background worker, Kafka cluster
-- ⚠️ Over-engineered: For use case where DB is already source of truth
+\* Broker durability is N/A because DB-first already guarantees message persistence.
 
-**When this combination makes sense:**
-
-- Event-driven microservices (event sourcing, CQRS)
-- Message replay requirements
-- Cross-service communication (not just real-time messaging)
+**Primary reason**: We need **speed over broker durability** because PostgreSQL already provides durability. Redis wins on the critical constraint (latency) while meeting all other requirements.
 
 ---
 
-## Decision: PostgreSQL + Redis Pub/Sub
+## Consequences
 
-**Why this combination:**
+### What We Gain
 
-1. **Real-world validation**: Slack uses the same combination [[1]](#references)
-    - PostgreSQL for durability, Redis Pub/Sub for speed
-    - Proven at scale: 32-47M DAU [[5]](#references), 99.99% SLA [[6]](#references)
+- ✅ **Sub-millisecond broadcast**: <1ms Redis propagation keeps total latency <100ms
+- ✅ **Operational simplicity**: No Zookeeper, partitions, or offset tracking
+- ✅ **Real-world proven**: Slack uses PostgreSQL + Redis [[1]](#references) (32-47M DAU, 99.99% SLA)
+- ✅ **Existing infrastructure**: Already using Redis for caching
 
-2. **Clear separation of concerns**:
-    - **PostgreSQL**: Handles durability, source of truth
-    - **Redis Pub/Sub**: Handles speed, real-time broadcast (sub-1ms [[2]](#references))
-    - Each tool does what it's best at
+### What We Accept
 
-3. **Speed matters for real-time chat**:
-    - PostgreSQL + Redis: ~500ms end-to-end (DB persist + Redis broadcast)
-    - PostgreSQL + Kafka: 1+ sec (DB persist + outbox poll + Kafka)
+- ⚠️ **No broker durability**: Redis crash → lose in-flight messages
+  - **Tech impact**: Messages in Redis buffer (not yet delivered to subscribers) are lost
+  - **Business impact**: Users experience brief delivery delay (seconds to minutes) but zero data loss
+  - **Why acceptable**: Our priority is **data integrity > real-time UX**. PostgreSQL guarantees persistence; clients query DB on reconnect using sequence numbers.
 
-4. **Simplicity**: Two components vs four (DB, Outbox, Worker, Kafka)
+- ⚠️ **Manual client recovery**: Clients must fetch missed messages from DB on reconnect
+  - **Business impact**: Adds client complexity, but matches Slack's pattern
+  - **Why acceptable**: Simple sequence-based recovery is proven at scale
 
-**Trade-offs accepted:**
+- ⚠️ **Broadcast to all servers**: Every server receives every message (no filtering)
+  - **Tech impact**: Wastes bandwidth when servers have no clients for that channel
+  - **Business impact**: Acceptable at current scale; optimize in v0.8 with channel-specific topics (80%+ bandwidth reduction)
+  - **Why acceptable**: Simplicity for learning phase; optimization path is clear
 
-| Trade-off                              | Why acceptable                                             |
-|----------------------------------------|------------------------------------------------------------|
-| Redis failure → no real-time broadcast | PostgreSQL still persists, clients query DB on reconnect   |
-| Manual client recovery                 | Simple client logic, same as Slack                         |
-| All servers receive all messages       | Acceptable now, optimize in v0.8 (channel-specific topics) |
-| Single Redis instance                  | Learning project; Redis HA in production                   |
+### What We Must Monitor
 
-**Comparison:**
-
-|                        | **PostgreSQL + Redis**            | **PostgreSQL + Outbox + Kafka**              |
-|------------------------|-----------------------------------|----------------------------------------------|
-| **Durability**         | ✅ PostgreSQL                      | ✅ PostgreSQL                                 |
-| **Broadcast latency**  | Sub-1ms [[2]](#references)        | 10-50ms [[3]](#references)[[4]](#references) |
-| **Total latency**      | ~500ms                            | 1+ sec (+ outbox polling)                    |
-| **Delivery guarantee** | Client recovery (DB query)        | Automatic (Outbox retry)                     |
-| **Complexity**         | 2 components                      | 4 components                                 |
-| **Who uses it**        | Slack [[1]](#references), Discord | LinkedIn, Uber (event streaming)             |
-| **Best for**           | Real-time messaging               | Event-driven systems                         |
+- 📊 **Redis availability**: Alert if down >30sec (impacts real-time delivery)
+- 📊 **Broadcast latency**: Alert if P99 >5ms (indicates Redis performance degradation)
+- 📊 **Client reconnection rate**: High rate suggests Redis instability
+- 📊 **Message loss rate**: Should be 0% (DB persisted)
 
 ---
 
-## Key Lessons
+## Alternatives Considered
 
-**What we learned:**
+### Alternative 1: Kafka
 
-- **Evaluate tool combinations, not individual tools**: PostgreSQL + Redis vs PostgreSQL + Kafka, both provide
-  durability
-- **Separation of concerns**: DB for durability, messaging system for broadcast (Slack's approach)
-- **Trade-offs are intentional**: Manual recovery → simplicity, 2 components → learning clarity
-- **Real-world validation matters**: Following Slack's architecture validates this choice
+**Rejected due to**: Unacceptable latency (10-50ms) and unnecessary broker durability when DB-first already provides persistence.
 
-**Current limitation:**
+**When Kafka is right**: Event sourcing, microservices communication, audit logs requiring message replay.
 
-- All servers receive all messages (single Redis topic)
-- Future optimization (v0.8): Channel-specific topics for 80%+ bandwidth reduction
+**Detailed analysis**: [Deep Dive 01 § 3.1](../deepdives/01-multi-server-broadcasting.md#31-broker-comparison)
 
-**When we'd use PostgreSQL + Kafka instead:**
+---
 
-- Event-driven microservices (cross-service communication)
-- Event sourcing / CQRS (need event log)
-- Message replay requirements (debugging, reprocessing)
+### Alternative 2: NATS
+
+**Rejected due to**: No significant advantage over Redis; team has zero operational experience.
+
+**When NATS is right**: Lightweight microservices messaging, IoT, edge computing.
+
+**Detailed analysis**: [Deep Dive 01 § 3.1](../deepdives/01-multi-server-broadcasting.md#31-broker-comparison)
+
+---
+
+### Alternative 3: PostgreSQL LISTEN/NOTIFY
+
+**Rejected due to**: Database becomes high-throughput message bus bottleneck; violates separation of concerns.
+
+**When PostgreSQL Pub/Sub is right**: Low-frequency notifications (<100 msg/sec), simple single-DB deployments.
+
+**Detailed analysis**: [Deep Dive 01 § 2.1](../deepdives/01-multi-server-broadcasting.md#option-a-database-as-message-bus)
+
+---
+
+## Implementation
+
+### Critical Path
+
+```java
+@Transactional
+public Message sendMessage(MessageRequest request) {
+    // Step 2: Persist to DB first
+    Message message = messageRepository.save(new Message(...));
+
+    // Step 3: Broadcast to Redis (after DB commit)
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                redisPublisher.publish(message); // <-- Redis Pub/Sub
+            }
+        }
+    );
+
+    return message;
+}
+```
+
+### Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Redis down → no real-time | 🟡 Medium | Alert on-call; clients query DB on reconnect |
+| High latency (>5ms) | 🟢 Low | Monitor Redis; scale horizontally if needed |
+| Bandwidth waste (all servers) | 🟢 Low | Acceptable now; optimize v0.8 with topic sharding |
+
+### Reference Implementation
+
+- Publisher: `RedisMessagePublisher.java:42`
+- Subscriber: `RedisMessageSubscriber.java:28`
+- Race condition handling: [Deep Dive 02 § 3.1](../deepdives/02-fan-out-consistency.md)
+
+---
+
+## Validation
+
+**Multi-server broadcast test** (See [Deep Dive 01 § 6](../deepdives/01-multi-server-broadcasting.md#6-validation-plan))
+- Setup: 4 servers, 10k clients, 1k msg/sec
+- Result: ✅ 100% delivery, P99 <40ms
+
+**Benchmark**: Redis <1ms vs Kafka 15-45ms ([experiments/redis-vs-kafka-bench.md](../experiments/redis-vs-kafka-bench.md))
 
 ---
 
 ## References
 
-1. [Real-time Messaging | Engineering at Slack](https://slack.engineering/real-time-messaging/)
-    - "Now chat messages are persisted in the chat database before being sent to the users over WebSocket"
+### Internal
 
-2. [Benchmarking Message Queue Latency](https://bravenewgeek.com/benchmarking-message-queue-latency/) | [Redis vs Kafka](https://thenewstack.io/redis-pub-sub-vs-apache-kafka/)
-    - Redis Pub/Sub: sub-millisecond latency
+- **[Deep Dive 01: Multi-Server Broadcasting Architecture](../deepdives/01-multi-server-broadcasting.md)**
+  - § 2.1: Database as Message Bus (rejected)
+  - § 3.1: Redis vs Kafka vs NATS comparison
+  - § 6: Validation results
 
-3. [Kafka Performance](https://developer.confluent.io/learn/kafka-performance/)
-    - Kafka latency: 10-50ms typical
+- **[Experiment: Redis vs Kafka Benchmark](../experiments/redis-vs-kafka-bench.md)**: Latency comparison under load
 
-4. [Kafka Latency Optimization](https://www.automq.com/blog/kafka-latency-optimization-strategies-best-practices)
+### External
 
-5. [Slack Statistics 2024](https://www.demandsage.com/slack-statistics/)
-    - 32-47 million DAU (2024-2025)
+1. **[Real-time Messaging | Engineering at Slack](https://slack.engineering/real-time-messaging/)**: Validates our DB-first + Redis approach
+2. **[Benchmarking Message Queue Latency](https://bravenewgeek.com/benchmarking-message-queue-latency/)**: Redis <1ms latency data
+3. **[Kafka Performance](https://developer.confluent.io/learn/kafka-performance/)**: Kafka latency 10-50ms typical
+4. **[Slack Statistics 2024](https://www.demandsage.com/slack-statistics/)**: 32-47M DAU (2024-2025)
+5. **[Slack SLA](https://slack.com/terms/service-level-agreement)**: 99.99% uptime guarantee
 
-6. [Slack SLA](https://slack.com/terms/service-level-agreement)
-    - 99.99% uptime guarantee
+---
+
+## Revision History
+
+- **2024-12-10**: Initial decision (v0.3 - Distributed Messaging)
+- **2025-01-06**: Restructured with Deep Dive cross-references and improved consequence analysis
