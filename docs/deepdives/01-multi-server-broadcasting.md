@@ -26,7 +26,7 @@ We evaluate three fundamental approaches for server-to-server message propagatio
 #### Option A: Database as Message Bus
 
 ```
-Server A → PostgreSQL (INSERT + NOTIFY/Polling)
+Server A → PostgreSQL (INSERT + optional NOTIFY)
          ↓
 Server B, C, D ← (LISTEN or Periodic Polling)
 ```
@@ -49,7 +49,7 @@ Server A → Broker (PUBLISH)
 Server B, C, D ← (SUBSCRIBE)
 ```
 
-* **Candidates**: Redis Pub/Sub, Kafka, NATS, RabbitMQ
+* **Candidates**: Redis Pub/Sub, Kafka
 * **Pros**:
     * **Low latency**: Sub-millisecond to single-digit millisecond propagation.
     * **Decoupling**: Servers don't need to know about each other.
@@ -102,17 +102,18 @@ Client → API → DB (commit) → Broker → WebSocket
 
 ### 2.3 Decision Matrix
 
-| Criteria                     | Option A (DB Bus) | Option B (Broker + DB-first) | Option B (Broker + Broker-first) |
-|------------------------------|-------------------|------------------------------|----------------------------------|
-| **Latency**                  | 🟡 50-100ms       | 🟢 20-50ms                   | 🟢 5-10ms                        |
-| **Durability**               | 🟢 Strong         | 🟢 Strong                    | 🔴 At-risk                       |
-| **Operational Complexity**   | 🟢 Low            | 🟡 Medium                    | 🔴 High                          |
-| **Scalability (Server count)**| 🔴 DB bottleneck  | 🟢 Excellent                 | 🟢 Excellent                     |
-| **Our Priority**             | ❌                | ✅                           | ❌                               |
+| Criteria                       | Option A (DB Bus) | Option B (Broker + DB-first) | Option B (Broker + Broker-first) |
+|--------------------------------|-------------------|------------------------------|----------------------------------|
+| **Latency**                    | 🟡 50-100ms       | 🟢 20-50ms                   | 🟢 5-10ms                        |
+| **Durability**                 | 🟢 Strong         | 🟢 Strong                    | 🔴 At-risk                       |
+| **Operational Complexity**     | 🟢 Low            | 🟡 Medium                    | 🔴 High                          |
+| **Scalability (Server count)** | 🔴 DB bottleneck  | 🟢 Excellent                 | 🟢 Excellent                     |
+| **Our Priority**               | ❌                 | ✅                            | ❌                                |
 
 **Decision**: **Message Broker with DB-first write path**
 
 **Rationale**:
+
 * We prioritize **durability over 10-20ms latency**. A slightly delayed message is acceptable; a lost message is not.
 * Redis Pub/Sub provides sub-millisecond broker propagation, keeping total latency under 100ms.
 * DB-first allows us to retry broker publish on failure without risking data loss.
@@ -121,17 +122,18 @@ Client → API → DB (commit) → Broker → WebSocket
 
 ### 3.1 Broker Comparison
 
-| Feature              | Redis Pub/Sub      | Kafka                  | NATS                |
-|----------------------|--------------------|------------------------|---------------------|
-| **Latency**          | 🟢 <1ms            | 🟡 5-10ms              | 🟢 <1ms             |
-| **Durability**       | 🔴 Fire-and-forget | 🟢 Persistent log      | 🟡 Optional JetStream|
-| **Throughput**       | 🟢 1M+ msg/sec     | 🟢 1M+ msg/sec         | 🟢 High             |
-| **Operational Cost** | 🟢 Simple          | 🔴 Complex (Zookeeper) | 🟢 Simple           |
-| **Our Use Case**     | ✅ Real-time path  | ❌ Overkill            | 🟡 Alternative      |
+| Feature              | Redis Pub/Sub      | Kafka             |
+|----------------------|--------------------|-------------------|
+| **Latency**          | 🟢 <1ms            | 🟡 5-10ms         |
+| **Durability**       | 🔴 Fire-and-forget | 🟢 Persistent log |
+| **Throughput**       | 🟢 1M+ msg/sec     | 🟢 1M+ msg/sec    |
+| **Operational Cost** | 🟢 Simple          | 🔴 Complex        |
+| **Our Use Case**     | ✅ Real-time path   | ❌ Overkill        |
 
 **Decision**: **Redis Pub/Sub**
 
 **Rationale**:
+
 * Since we're doing **DB-first**, we don't need Kafka's durability guarantees in the broker.
 * Redis's simplicity and sub-millisecond latency align with our real-time requirements.
 * We already use Redis for caching, minimizing operational overhead.
@@ -163,19 +165,7 @@ Step 5 (Delivery):    Gateway Servers → Connected Clients (WebSocket push)
     * Step 5: <5ms (WebSocket push)
     * **Total**: ~30-40ms (well under 100ms budget)
 
-## 5. Architectural Decision Records
-
-This deep dive leads to the following ADRs:
-
-* **ADR-0001**: Use DB-first write path for message durability
-    * Context: See § 2.2 (Write Path Decision)
-    * Decision: Commit to PostgreSQL before publishing to Redis
-
-* **ADR-0002**: Use Redis Pub/Sub for server-to-server broadcasting
-    * Context: See § 3.1 (Broker Comparison)
-    * Decision: Redis Pub/Sub as the real-time fan-out layer
-
-## 6. Validation Plan (The Proof)
+## 5. Validation Plan (The Proof)
 
 ### Scenario A: Multi-Server Broadcast Test
 
@@ -184,6 +174,14 @@ This deep dive leads to the following ADRs:
     * 4 server instances
     * 10k clients distributed across servers
     * 1k messages/sec load
+* **How to Test**:
+    * Use Docker Compose to spin up 4 backend instances + 1 Redis + 1 PostgreSQL
+    * Run a load test script that:
+        1. Connects 10k WebSocket clients (2.5k per server)
+        2. Each client subscribes to a test channel
+        3. Sends messages via REST API to random servers
+        4. Each client logs: message_id, received_timestamp
+    * Collect logs and verify all clients received all messages
 * **Success Criteria**:
     * 100% delivery rate across all servers
     * P99 latency < 100ms (Step 1 → Step 5)
@@ -193,9 +191,16 @@ This deep dive leads to the following ADRs:
 
 * **Goal**: Prove that Redis failure doesn't cause message loss.
 * **Setup**:
-    * Kill Redis during Step 3
-    * Verify messages are persisted in DB (Step 2 completed)
-    * Restart Redis and verify messages can be re-broadcast
+    * 2 server instances, N WebSocket clients
+* **How to Test**:
+    * Send 1000 messages via API
+    * During message sending (around message 500):
+        1. `docker stop redis` (kill Redis container)
+        2. Continue sending remaining 500 messages
+    * Verify in PostgreSQL: `SELECT COUNT(*) FROM messages` should be 1000
+    * Restart Redis: `docker start redis`
+    * Manually trigger re-broadcast from DB (or implement a recovery mechanism)
+    * Verify all WebSocket clients received all 1000 messages
 * **Success Criteria**:
     * 0% data loss
     * All messages in DB can be recovered and re-delivered
@@ -208,16 +213,39 @@ This deep dive leads to the following ADRs:
     * Test with 2, 4, 8, 16 server instances
     * Maintain 10k clients per server
     * Constant 1k msg/sec load
+* **How to Test**:
+    * For each server count (2, 4, 8, 16):
+        1. Use Docker Compose `--scale backend=N` to spin up N instances
+        2. Load test script connects 10k * N clients (evenly distributed)
+        3. Send 1k msg/sec for 60 seconds
+        4. Measure:
+            * P50, P95, P99 latency (client-side timestamp tracking)
+            * Redis: `redis-cli INFO stats` for CPU usage, network throughput
+            * PostgreSQL: query duration from logs
+    * Plot latency vs. server count, Redis metrics vs. server count
 * **Success Criteria**:
     * Latency remains stable (no O(N²) degradation)
     * Redis CPU/bandwidth usage scales linearly
 * **Maps to**: Section 1.2 (Scalability Constraint)
 
+## 6. Architectural Decision Records
+
+This deep dive leads to the following ADRs:
+
+* **ADR-0001**: Use DB-first write path for message durability
+    * Context: See § 2.2 (Write Path Decision)
+    * Decision: Commit to PostgreSQL before publishing to Redis
+
+* **ADR-0002**: Use Redis Pub/Sub for server-to-server broadcasting
+    * Context: See § 3.1 (Broker Comparison)
+    * Decision: Redis Pub/Sub as the real-time fan-out layer
+
 ## 7. What's Next?
 
 This architecture establishes the foundation, but introduces new challenges:
 
-* **Race Conditions**: What if Redis (Step 3) propagates before DB transaction (Step 2) is visible to other transactions?
+* **Race Conditions**: What if Redis (Step 3) propagates before DB transaction (Step 2) is visible to other
+  transactions?
 * **Hot Channels**: What if a single channel saturates Redis bandwidth?
 * **Thundering Herd**: What happens when all Gateway servers restart simultaneously?
 * **Message Ordering**: How do we ensure causal consistency across distributed servers?
