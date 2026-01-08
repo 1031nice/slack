@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 import static com.slack.common.controller.ResponseHelper.ok;
@@ -33,7 +34,8 @@ public class MessageController {
             @PathVariable Long channelId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Long before,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         unreadCountService.clearUnreadCount(user.getId(), channelId);
 
@@ -44,7 +46,8 @@ public class MessageController {
     @GetMapping("/messages/{messageId}")
     public ResponseEntity<MessageResponse> getMessageById(
             @PathVariable Long messageId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         MessageResponse response = messageService.getMessageById(messageId, user.getId());
         return ok(response);

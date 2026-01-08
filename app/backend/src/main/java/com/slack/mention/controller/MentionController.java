@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,7 +32,8 @@ public class MentionController {
      */
     @GetMapping("/mentions")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal String authUserId) {
+    public ResponseEntity<List<MentionResponse>> getMentions(Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         List<MentionResponse> mentions = mentionService.getMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
@@ -48,7 +50,8 @@ public class MentionController {
      */
     @GetMapping("/mentions/unread")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal String authUserId) {
+    public ResponseEntity<List<MentionResponse>> getUnreadMentions(Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         List<MentionResponse> mentions = mentionService.getUnreadMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)

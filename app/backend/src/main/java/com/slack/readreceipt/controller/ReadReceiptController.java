@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 
 import static com.slack.common.controller.ResponseHelper.ok;
@@ -30,7 +31,8 @@ public class ReadReceiptController {
     @GetMapping("/channels/{channelId}/read-receipt")
     public ResponseEntity<Map<String, String>> getReadReceipt(
             @PathVariable Long channelId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         String lastReadTimestamp = readReceiptService.getReadReceipt(user.getId(), channelId);
         return ok(Map.of("lastReadTimestamp", lastReadTimestamp != null ? lastReadTimestamp : "0"));
@@ -46,7 +48,8 @@ public class ReadReceiptController {
     @GetMapping("/channels/{channelId}/read-receipts")
     public ResponseEntity<Map<Long, String>> getChannelReadReceipts(
             @PathVariable Long channelId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         Map<Long, String> readReceipts = readReceiptService.getChannelReadReceipts(channelId, user.getId());
         return ok(readReceipts);

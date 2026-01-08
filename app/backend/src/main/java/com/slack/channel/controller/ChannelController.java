@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 import static com.slack.common.controller.ResponseHelper.created;
@@ -28,7 +29,8 @@ public class ChannelController {
     public ResponseEntity<ChannelResponse> createChannel(
             @PathVariable Long workspaceId,
             @Valid @RequestBody ChannelCreateRequest request,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         ChannelResponse response = channelService.createChannel(workspaceId, request, user.getId());
         return created(response);
@@ -37,7 +39,8 @@ public class ChannelController {
     @GetMapping("/workspaces/{workspaceId}/channels")
     public ResponseEntity<List<ChannelResponse>> getWorkspaceChannels(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         List<ChannelResponse> channels = channelService.getWorkspaceChannels(workspaceId, user.getId());
         return ok(channels);
@@ -46,7 +49,8 @@ public class ChannelController {
     @GetMapping("/channels/{channelId}")
     public ResponseEntity<ChannelResponse> getChannelById(
             @PathVariable Long channelId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         ChannelResponse response = channelService.getChannelById(channelId, user.getId());
         return ok(response);

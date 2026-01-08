@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+
 import static com.slack.common.controller.ResponseHelper.created;
 import static com.slack.common.controller.ResponseHelper.ok;
 
@@ -27,7 +29,8 @@ public class WorkspaceInvitationController {
     public ResponseEntity<WorkspaceInviteResponse> inviteUser(
             @PathVariable Long workspaceId,
             @Valid @RequestBody WorkspaceInviteRequest request,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, user.getId(), request);
         return created(response);
@@ -36,7 +39,8 @@ public class WorkspaceInvitationController {
     @PostMapping("/invitations/accept")
     public ResponseEntity<Long> acceptInvitation(
             @Valid @RequestBody AcceptInvitationRequest request,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         Long workspaceId = invitationService.acceptInvitation(authUserId, request);
         return ok(workspaceId);
     }

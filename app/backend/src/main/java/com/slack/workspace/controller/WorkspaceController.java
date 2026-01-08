@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 
 import static com.slack.common.controller.ResponseHelper.created;
@@ -27,14 +28,16 @@ public class WorkspaceController {
     @PostMapping
     public ResponseEntity<WorkspaceResponse> createWorkspace(
             @Valid @RequestBody WorkspaceCreateRequest request,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         WorkspaceResponse response = workspaceService.createWorkspace(request, authUserId);
         return created(response);
     }
 
     @GetMapping
     public ResponseEntity<List<WorkspaceResponse>> getUserWorkspaces(
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(authUserId);
         return ok(workspaces);
     }
@@ -42,7 +45,8 @@ public class WorkspaceController {
     @GetMapping("/{workspaceId}")
     public ResponseEntity<WorkspaceResponse> getWorkspaceById(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         WorkspaceResponse response = workspaceService.getWorkspaceById(workspaceId, user.getId());
         return ok(response);

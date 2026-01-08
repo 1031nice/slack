@@ -4,6 +4,7 @@ import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.websocket.service.WebSocketMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.security.Principal;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,10 +18,11 @@ public class WebSocketController {
     private final WebSocketMessageService webSocketMessageService;
 
     @MessageMapping("/message.send")
-    public void handleMessage(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
+    public void handleMessage(Principal principal, @Payload WebSocketMessage message) {
+        String authUserId = principal != null ? principal.getName() : null;
         try {
             if (authUserId == null) {
-                log.error("authUserId is null in handleMessage");
+                log.error("authUserId is null in handleMessage (Principal is null)");
                 throw new IllegalStateException("User not authenticated");
             }
             log.info("[DEBUG] Handling message from authUserId: {}", authUserId);
@@ -34,8 +36,14 @@ public class WebSocketController {
     }
 
     @MessageMapping("/message.resend")
-    public void handleResend(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
+    public void handleResend(Principal principal, @Payload WebSocketMessage message) {
+        String authUserId = principal != null ? principal.getName() : null;
         try {
+            if (authUserId == null) {
+                 log.error("authUserId is null in handleResend (Principal is null)");
+                 return;
+            }
+
             if (message.getChannelId() == null) {
                 log.warn("Invalid resend request: channelId is null");
                 return;
@@ -59,8 +67,14 @@ public class WebSocketController {
     }
 
     @MessageMapping("/message.read")
-    public void handleRead(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
+    public void handleRead(Principal principal, @Payload WebSocketMessage message) {
+        String authUserId = principal != null ? principal.getName() : null;
         try {
+             if (authUserId == null) {
+                 log.error("authUserId is null in handleRead (Principal is null)");
+                 return;
+            }
+
             if (message.getChannelId() == null) {
                 log.warn("Invalid read request: channelId is null");
                 return;

@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+
 import static com.slack.common.controller.ResponseHelper.ok;
 
 /**
@@ -35,7 +37,8 @@ public class UnreadController {
     public ResponseEntity<UnreadViewResponse> getUnreads(
             @RequestParam(required = false, defaultValue = "newest") String sort,
             @RequestParam(required = false) Integer limit,
-            @AuthenticationPrincipal String authUserId) {
+            Principal principal) {
+        String authUserId = principal.getName();
         User user = userService.findByAuthUserId(authUserId);
         UnreadViewResponse response = unreadViewService.getUnreads(user.getId(), sort, limit);
         return ok(response);
