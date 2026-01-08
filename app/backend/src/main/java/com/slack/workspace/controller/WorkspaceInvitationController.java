@@ -1,6 +1,7 @@
 package com.slack.workspace.controller;
 
 import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.workspace.dto.AcceptInvitationRequest;
 import com.slack.workspace.dto.WorkspaceInviteRequest;
 import com.slack.workspace.dto.WorkspaceInviteResponse;
@@ -20,29 +21,23 @@ import static com.slack.common.controller.ResponseHelper.ok;
 public class WorkspaceInvitationController {
 
     private final WorkspaceInvitationService invitationService;
+    private final UserService userService;
 
-    /**
-     * 워크스페이스에 사용자를 초대합니다.
-     * Owner 또는 Admin만 초대할 수 있습니다.
-     */
     @PostMapping("/{workspaceId}/invitations")
     public ResponseEntity<WorkspaceInviteResponse> inviteUser(
             @PathVariable Long workspaceId,
             @Valid @RequestBody WorkspaceInviteRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         WorkspaceInviteResponse response = invitationService.inviteUser(workspaceId, user.getId(), request);
         return created(response);
     }
 
-    /**
-     * 초대를 수락합니다.
-     * 인증된 사용자가 초대 토큰을 사용하여 워크스페이스에 가입합니다.
-     */
     @PostMapping("/invitations/accept")
     public ResponseEntity<Long> acceptInvitation(
             @Valid @RequestBody AcceptInvitationRequest request,
-            @AuthenticationPrincipal User user) {
-        Long workspaceId = invitationService.acceptInvitation(user.getAuthUserId(), request);
+            @AuthenticationPrincipal String authUserId) {
+        Long workspaceId = invitationService.acceptInvitation(authUserId, request);
         return ok(workspaceId);
     }
 }

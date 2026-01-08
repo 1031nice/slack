@@ -1,6 +1,5 @@
 package com.slack.websocket.controller;
 
-import com.slack.user.domain.User;
 import com.slack.websocket.dto.WebSocketMessage;
 import com.slack.websocket.service.WebSocketMessageService;
 import lombok.RequiredArgsConstructor;
@@ -17,32 +16,25 @@ public class WebSocketController {
 
     private final WebSocketMessageService webSocketMessageService;
 
-    /**
-     * 클라이언트로부터 메시지를 받아서 처리합니다.
-     * 클라이언트는 /app/message.send로 메시지를 보냅니다.
-     *
-     * @param message WebSocket 메시지
-     * @param user 인증된 사용자
-     */
     @MessageMapping("/message.send")
-    public void handleMessage(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
+    public void handleMessage(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
         try {
-            webSocketMessageService.handleIncomingMessage(message, user.getAuthUserId());
+            if (authUserId == null) {
+                log.error("authUserId is null in handleMessage");
+                throw new IllegalStateException("User not authenticated");
+            }
+            log.info("[DEBUG] Handling message from authUserId: {}", authUserId);
+            webSocketMessageService.handleIncomingMessage(message, authUserId);
         } catch (Exception e) {
             log.error("Error handling message", e);
-            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), e.getMessage());
+            if (authUserId != null) {
+                webSocketMessageService.sendErrorMessage(authUserId, e.getMessage());
+            }
         }
     }
 
-    /**
-     * 클라이언트로부터 재전송 요청을 받아서 처리합니다.
-     * 클라이언트는 /app/message.resend로 재전송 요청을 보냅니다.
-     *
-     * @param message 재전송 요청 WebSocket 메시지 (channelId + createdAt)
-     * @param user 인증된 사용자
-     */
     @MessageMapping("/message.resend")
-    public void handleResend(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
+    public void handleResend(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
         try {
             if (message.getChannelId() == null) {
                 log.warn("Invalid resend request: channelId is null");
@@ -58,33 +50,26 @@ public class WebSocketController {
             webSocketMessageService.resendMissedMessagesByTimestamp(
                     message.getChannelId(),
                     message.getCreatedAt(),
-                    user.getAuthUserId()
+                    authUserId
             );
         } catch (Exception e) {
             log.error("Error handling resend request", e);
-            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), "Failed to resend messages: " + e.getMessage());
+            webSocketMessageService.sendErrorMessage(authUserId, "Failed to resend messages: " + e.getMessage());
         }
     }
 
-    /**
-     * 클라이언트로부터 읽음 처리 요청을 받아서 처리합니다.
-     * 클라이언트는 /app/message.read로 읽음 처리를 보냅니다.
-     *
-     * @param message 읽음 처리 WebSocket 메시지 (channelId, createdAt 포함)
-     * @param user 인증된 사용자
-     */
     @MessageMapping("/message.read")
-    public void handleRead(@Payload WebSocketMessage message, @AuthenticationPrincipal User user) {
+    public void handleRead(@Payload WebSocketMessage message, @AuthenticationPrincipal String authUserId) {
         try {
             if (message.getChannelId() == null) {
                 log.warn("Invalid read request: channelId is null");
                 return;
             }
 
-            webSocketMessageService.handleRead(message, user.getAuthUserId());
+            webSocketMessageService.handleRead(message, authUserId);
         } catch (Exception e) {
             log.error("Error handling read request", e);
-            webSocketMessageService.sendErrorMessage(user.getAuthUserId(), "Failed to process read receipt: " + e.getMessage());
+            webSocketMessageService.sendErrorMessage(authUserId, "Failed to process read receipt: " + e.getMessage());
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.slack.workspace.controller;
 
 import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.workspace.dto.WorkspaceCreateRequest;
 import com.slack.workspace.dto.WorkspaceResponse;
 import com.slack.workspace.service.WorkspaceService;
@@ -21,26 +22,28 @@ import static com.slack.common.controller.ResponseHelper.ok;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+    private final UserService userService;
 
     @PostMapping
     public ResponseEntity<WorkspaceResponse> createWorkspace(
             @Valid @RequestBody WorkspaceCreateRequest request,
-            @AuthenticationPrincipal User user) {
-        WorkspaceResponse response = workspaceService.createWorkspace(request, user.getAuthUserId());
+            @AuthenticationPrincipal String authUserId) {
+        WorkspaceResponse response = workspaceService.createWorkspace(request, authUserId);
         return created(response);
     }
 
     @GetMapping
     public ResponseEntity<List<WorkspaceResponse>> getUserWorkspaces(
-            @AuthenticationPrincipal User user) {
-        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(user.getAuthUserId());
+            @AuthenticationPrincipal String authUserId) {
+        List<WorkspaceResponse> workspaces = workspaceService.getUserWorkspaces(authUserId);
         return ok(workspaces);
     }
 
     @GetMapping("/{workspaceId}")
     public ResponseEntity<WorkspaceResponse> getWorkspaceById(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         WorkspaceResponse response = workspaceService.getWorkspaceById(workspaceId, user.getId());
         return ok(response);
     }

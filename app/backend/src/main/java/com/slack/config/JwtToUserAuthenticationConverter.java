@@ -16,8 +16,8 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 
 /**
- * Converts JWT to Authentication with User entity as principal.
- * This allows controllers to use @AuthenticationPrincipal User directly.
+ * Converts JWT to Authentication with authUserId (String) as principal.
+ * This allows controllers to use @AuthenticationPrincipal String authUserId directly.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,11 +28,13 @@ public class JwtToUserAuthenticationConverter implements Converter<Jwt, Abstract
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         String authUserId = jwt.getSubject();
-        User user = userService.findByAuthUserId(authUserId);
+        // Ensure user exists in database
+        userService.findByAuthUserId(authUserId);
 
         Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
 
-        return new UsernamePasswordAuthenticationToken(user, jwt, authorities);
+        // Store authUserId (String) as Principal to avoid JPA session issues
+        return new UsernamePasswordAuthenticationToken(authUserId, jwt, authorities);
     }
 
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {

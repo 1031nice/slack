@@ -1,6 +1,7 @@
 package com.slack.mention.controller;
 
 import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.mention.dto.MentionResponse;
 import com.slack.mention.service.MentionService;
 import lombok.RequiredArgsConstructor;
@@ -20,16 +21,18 @@ import static com.slack.common.controller.ResponseHelper.ok;
 public class MentionController {
 
     private final MentionService mentionService;
+    private final UserService userService;
 
     /**
      * Get all mentions for the authenticated user
-     * 
-     * @param jwt JWT token
+     *
+     * @param authUserId Authenticated user ID
      * @return List of mentions
      */
     @GetMapping("/mentions")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<MentionResponse>> getMentions(@AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         List<MentionResponse> mentions = mentionService.getMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -39,13 +42,14 @@ public class MentionController {
 
     /**
      * Get unread mentions for the authenticated user
-     * 
-     * @param jwt JWT token
+     *
+     * @param authUserId Authenticated user ID
      * @return List of unread mentions
      */
     @GetMapping("/mentions/unread")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<MentionResponse>> getUnreadMentions(@AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         List<MentionResponse> mentions = mentionService.getUnreadMentionsByUserId(user.getId()).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());

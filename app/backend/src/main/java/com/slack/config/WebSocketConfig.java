@@ -59,12 +59,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
+        log.info("[DEBUG] Registering channel interceptor");
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+                log.info("[DEBUG] preSend called, accessor: {}, command: {}", accessor, accessor != null ? accessor.getCommand() : "null");
 
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+                    log.info("[DEBUG] CONNECT command detected, calling authenticateConnect");
                     authenticateConnect(accessor);
                 }
 
@@ -74,17 +77,23 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     private void authenticateConnect(StompHeaderAccessor accessor) {
+        log.info("[DEBUG] authenticateConnect called");
         String authToken = accessor.getFirstNativeHeader("Authorization");
+        log.info("[DEBUG] Authorization header: {}", authToken);
+
         if (authToken == null || !authToken.startsWith("Bearer ")) {
-            log.warn("No Authorization header in CONNECT message");
+            log.warn("No Authorization header in CONNECT message. Token: {}", authToken);
             return;
         }
 
         try {
             String token = authToken.substring(7);
+            log.info("[DEBUG] Extracted token: {}", token);
             Authentication authentication = authenticate(token);
+            log.info("[DEBUG] Authentication result: {}", authentication);
             if (authentication != null) {
                 accessor.setUser(authentication);
+                log.info("[DEBUG] User set in accessor: {}", authentication.getPrincipal());
             }
         } catch (Exception e) {
             log.error("JWT authentication failed during CONNECT", e);
@@ -103,10 +112,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private Authentication authenticateDevMode(String token) {
         String authUserId = devJwtUtil.extractUsername(token);
+        // Ensure user exists in database
         User user = userService.findOrCreateDevUser(authUserId);
 
-        log.debug("WebSocket dev authentication successful: {}", authUserId);
-        return new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
+        log.info("[DEBUG] Dev auth successful - authUserId: {}, User ID: {}, User.authUserId: {}",
+                authUserId, user.getId(), user.getAuthUserId());
+
+        // Store authUserId (String) as Principal to avoid JPA session issues
+        return new UsernamePasswordAuthenticationToken(authUserId, null, Collections.emptyList());
     }
 
     private Authentication authenticateProductionMode(String token) {

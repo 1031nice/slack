@@ -1,6 +1,7 @@
 package com.slack.message.controller;
 
 import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.message.dto.MessageResponse;
 import com.slack.message.service.MessageService;
 import com.slack.unread.service.UnreadCountService;
@@ -25,13 +26,15 @@ public class MessageController {
 
     private final MessageService messageService;
     private final UnreadCountService unreadCountService;
+    private final UserService userService;
 
     @GetMapping("/channels/{channelId}/messages")
     public ResponseEntity<List<MessageResponse>> getChannelMessages(
             @PathVariable Long channelId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Long before,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         unreadCountService.clearUnreadCount(user.getId(), channelId);
 
         List<MessageResponse> messages = messageService.getChannelMessages(channelId, user.getId(), limit, before);
@@ -41,7 +44,8 @@ public class MessageController {
     @GetMapping("/messages/{messageId}")
     public ResponseEntity<MessageResponse> getMessageById(
             @PathVariable Long messageId,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         MessageResponse response = messageService.getMessageById(messageId, user.getId());
         return ok(response);
     }

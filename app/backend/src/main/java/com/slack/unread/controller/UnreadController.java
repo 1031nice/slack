@@ -1,6 +1,7 @@
 package com.slack.unread.controller;
 
 import com.slack.user.domain.User;
+import com.slack.user.service.UserService;
 import com.slack.unread.dto.UnreadViewResponse;
 import com.slack.unread.service.UnreadViewService;
 import lombok.RequiredArgsConstructor;
@@ -20,20 +21,22 @@ import static com.slack.common.controller.ResponseHelper.ok;
 public class UnreadController {
 
     private final UnreadViewService unreadViewService;
+    private final UserService userService;
 
     /**
      * Get aggregated unread messages across all channels for the authenticated user.
      *
      * @param sort Sort option: "newest" (default), "oldest", or "channel"
      * @param limit Maximum number of messages to return (default: 50, max: 200)
-     * @param user Authenticated user
+     * @param authUserId Authenticated user ID
      * @return UnreadViewResponse with sorted unread messages
      */
     @GetMapping("/unreads")
     public ResponseEntity<UnreadViewResponse> getUnreads(
             @RequestParam(required = false, defaultValue = "newest") String sort,
             @RequestParam(required = false) Integer limit,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal String authUserId) {
+        User user = userService.findByAuthUserId(authUserId);
         UnreadViewResponse response = unreadViewService.getUnreads(user.getId(), sort, limit);
         return ok(response);
     }
