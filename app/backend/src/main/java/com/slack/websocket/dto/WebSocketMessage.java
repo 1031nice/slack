@@ -19,13 +19,13 @@ public class WebSocketMessage {
     private String timestampId;    // Timestamp-based message ID (unique per channel)
 
     public enum MessageType {
-        MESSAGE,      // 일반 메시지
-        JOIN,         // 채널 참여
-        LEAVE,        // 채널 나가기
-        ERROR,        // 에러
-        RESEND,       // 메시지 재전송 요청
-        MENTION,      // @mention 알림
-        READ          // 읽음 처리 (read receipt)
+        MESSAGE,
+        JOIN,
+        LEAVE,
+        ERROR,
+        RESEND,
+        MENTION,
+        READ
     }
 }
 

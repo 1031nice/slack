@@ -3,16 +3,16 @@ package com.slack.auth.service;
 import org.springframework.security.core.Authentication;
 
 /**
- * Authentication 객체에서 authUserId를 추출하는 인터페이스
- * 프로덕션과 개발 모드에서 서로 다른 구현체를 사용합니다.
+ * Interface for extracting authUserId from Authentication
+ * Different implementations for production and dev modes
  */
 public interface AuthenticationExtractor {
 
     /**
-     * Authentication 객체에서 authUserId를 추출합니다.
+     * Extract authUserId from Authentication
      *
-     * @param authentication Spring Security Authentication 객체
-     * @return authUserId (username), 추출 실패 시 null
+     * @param authentication Spring Security Authentication object
+     * @return authUserId, or null if extraction fails
      */
     String extractAuthUserId(Authentication authentication);
 }

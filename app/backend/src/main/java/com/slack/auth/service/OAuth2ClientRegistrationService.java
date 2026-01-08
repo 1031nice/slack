@@ -98,7 +98,6 @@ public class OAuth2ClientRegistrationService implements ApplicationRunner {
         } catch (HttpClientErrorException e) {
             log.error("HTTP error during registration: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
-                // 클라이언트가 이미 등록되어 있을 수 있음
                 log.info("OAuth2 client '{}' may already be registered (status: {})", clientId, e.getStatusCode());
             } else if (e.getStatusCode() == HttpStatus.FOUND || e.getStatusCode().is3xxRedirection()) {
                 log.warn("Received redirect response ({}). The registration endpoint may require authentication.", e.getStatusCode());

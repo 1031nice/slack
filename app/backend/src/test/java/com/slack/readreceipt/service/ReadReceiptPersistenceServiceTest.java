@@ -91,12 +91,12 @@ class ReadReceiptPersistenceServiceTest {
                 ReadReceiptEvent.builder()
                         .userId(1L)
                         .channelId(100L)
-                        .lastReadTimestamp("1735046400000060")  // 더 최신
+                        .lastReadTimestamp("1735046400000060")
                         .build(),
                 ReadReceiptEvent.builder()
                         .userId(1L)
                         .channelId(100L)
-                        .lastReadTimestamp("1735046400000040")  // 더 오래됨
+                        .lastReadTimestamp("1735046400000040")
                         .build()
         );
 
@@ -104,11 +104,10 @@ class ReadReceiptPersistenceServiceTest {
         persistenceService.consumeReadReceipts(duplicateEvents, 0, acknowledgment);
 
         // then
-        // 3개 이벤트가 1개로 dedup되어 DB 작업이 1번만 수행됨
         verify(jdbcTemplate, times(1)).batchUpdate(
                 anyString(),
                 anyCollection(),
-                eq(1),  // dedup 후 크기
+                eq(1),
                 any()
         );
         verify(acknowledgment, times(1)).acknowledge();
@@ -187,11 +186,10 @@ class ReadReceiptPersistenceServiceTest {
         persistenceService.consumeReadReceipts(events, 0, acknowledgment);
 
         // then
-        // 4개 이벤트 → 2개 unique user-channel 조합으로 dedup
         verify(jdbcTemplate, times(1)).batchUpdate(
                 anyString(),
                 anyCollection(),
-                eq(2),  // userId=1과 userId=2 각각 1개씩
+                eq(2),
                 any()
         );
         verify(acknowledgment, times(1)).acknowledge();

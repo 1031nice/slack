@@ -6,8 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 개발용 간단 로그인 요청
- * username만 입력하면 토큰을 발급합니다.
+ * Simple login request for dev mode
  */
 @Getter
 @NoArgsConstructor

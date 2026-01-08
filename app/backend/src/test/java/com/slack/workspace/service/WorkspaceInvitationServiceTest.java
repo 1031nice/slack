@@ -282,7 +282,7 @@ class WorkspaceInvitationServiceTest {
                 .workspace(workspace)
                 .inviter(inviter)
                 .email("invitee@example.com")
-                .expiresAt(LocalDateTime.now().minusDays(1)) // 만료됨
+                .expiresAt(LocalDateTime.now().minusDays(1))
                 .build();
         try {
             setField(invitation, "id", 1L);
@@ -302,7 +302,7 @@ class WorkspaceInvitationServiceTest {
                 .hasMessageContaining("Invitation has expired");
 
         verify(invitationRepository).findByToken("expired-token");
-        verify(invitationRepository).save(invitation); // EXPIRED 상태로 저장
+        verify(invitationRepository).save(invitation);
         verify(workspaceMemberRepository, never()).save(any());
     }
 
@@ -321,7 +321,7 @@ class WorkspaceInvitationServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        invitation.accept(); // 이미 수락됨
+        invitation.accept();
 
         when(invitationRepository.findByToken("accepted-token")).thenReturn(Optional.of(invitation));
 
@@ -356,7 +356,7 @@ class WorkspaceInvitationServiceTest {
 
         when(invitationRepository.findByToken("test-token")).thenReturn(Optional.of(invitation));
         when(userService.findByAuthUserIdOptional("auth-user-2")).thenReturn(Optional.of(invitee));
-        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, 2L)).thenReturn(true); // 이미 멤버
+        when(workspaceMemberRepository.existsByWorkspaceIdAndUserId(1L, 2L)).thenReturn(true);
 
         AcceptInvitationRequest request = AcceptInvitationRequest.builder()
                 .token("test-token")

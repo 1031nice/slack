@@ -6,7 +6,6 @@ import com.slack.auth.dto.TokenExchangeRequest;
 import com.slack.auth.service.AuthService;
 import com.slack.util.DevJwtUtil;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
@@ -34,11 +33,7 @@ public class AuthController {
     }
 
     /**
-     * 개발용 간단 로그인 엔드포인트
-     * dev 프로파일에서만 활성화됩니다.
-     *
-     * @param request username
-     * @return JWT 토큰
+     * Simple login endpoint for dev mode only
      */
     @PostMapping("/dev/login")
     @Profile("dev")

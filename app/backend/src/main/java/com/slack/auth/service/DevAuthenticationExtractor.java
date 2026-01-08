@@ -7,8 +7,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 /**
- * 개발 모드용 AuthenticationExtractor 구현체
- * Principal이 User 객체인 경우를 처리합니다.
+ * Dev mode AuthenticationExtractor
+ * Handles User entity principal
  */
 @Slf4j
 @Component

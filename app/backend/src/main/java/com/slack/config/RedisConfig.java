@@ -61,13 +61,10 @@ public class RedisConfig {
     /**
      * Message listener adapter for Redis Pub/Sub
      * Routes Redis messages to RedisMessageSubscriber
-     * MessageListener 인터페이스를 구현한 경우 자동으로 onMessage 메서드를 호출합니다.
      */
     @Bean
     public MessageListenerAdapter messageListenerAdapter(RedisMessageSubscriber subscriber) {
-        MessageListenerAdapter adapter = new MessageListenerAdapter(subscriber);
-        // MessageListener 인터페이스를 구현했으므로 자동으로 onMessage 메서드가 호출됩니다.
-        return adapter;
+        return new MessageListenerAdapter(subscriber);
     }
 }
 

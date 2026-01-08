@@ -31,8 +31,7 @@ public class ReadReceipt {
     private Channel channel;
 
     /**
-     * 마지막으로 읽은 메시지의 timestamp
-     * 이 timestamp 이하의 모든 메시지를 읽은 것으로 간주
+     * Timestamp of last read message
      * Format: timestampId (e.g., "1735046400000001") or ISO datetime
      */
     @Column(name = "last_read_timestamp", nullable = false, length = 30)

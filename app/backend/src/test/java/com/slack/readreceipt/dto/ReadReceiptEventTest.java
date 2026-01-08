@@ -64,7 +64,7 @@ class ReadReceiptEventTest {
         ReadReceiptEvent event2 = ReadReceiptEvent.builder()
                 .userId(1L)
                 .channelId(100L)
-                .lastReadTimestamp("1735046400000060")  // 다른 timestamp
+                .lastReadTimestamp("1735046400000060")
                 .build();
 
         // when & then
@@ -82,14 +82,14 @@ class ReadReceiptEventTest {
                 .build();
 
         ReadReceiptEvent event2 = ReadReceiptEvent.builder()
-                .userId(2L)  // 다른 user
+                .userId(2L)
                 .channelId(100L)
                 .lastReadTimestamp("1735046400000050")
                 .build();
 
         ReadReceiptEvent event3 = ReadReceiptEvent.builder()
                 .userId(1L)
-                .channelId(200L)  // 다른 channel
+                .channelId(200L)
                 .lastReadTimestamp("1735046400000050")
                 .build();
 

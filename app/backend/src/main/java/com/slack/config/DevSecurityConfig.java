@@ -19,7 +19,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.stereotype.Component;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,8 +26,8 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * 개발용 Security 설정
- * dev 프로파일에서만 활성화되며, 간단한 JWT 검증을 사용합니다.
+ * Security configuration for dev mode only
+ * Uses simple JWT validation
  */
 @Configuration
 @EnableWebSecurity
@@ -38,7 +37,6 @@ import java.util.Collections;
 public class DevSecurityConfig {
 
     private final CorsConfigurationSource corsConfigurationSource;
-    private final DevJwtUtil devJwtUtil;
 
     @Bean
     public DevJwtAuthenticationFilter devJwtAuthenticationFilter(DevJwtUtil devJwtUtil, UserService userService) {
@@ -65,9 +63,6 @@ public class DevSecurityConfig {
         return http.build();
     }
 
-    /**
-     * 개발용 JWT 인증 필터
-     */
     @RequiredArgsConstructor
     public static class DevJwtAuthenticationFilter extends OncePerRequestFilter {
 

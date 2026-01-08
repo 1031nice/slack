@@ -153,12 +153,7 @@ class UnreadCountServiceTest {
         unreadCountService.incrementUnreadCount(CHANNEL_ID, MESSAGE_ID, SENDER_ID, TIMESTAMP);
 
         // then
-        // Pipeline을 사용하므로 개별 ZADD 호출을 verify할 수 없음
-        // Repository 호출만 확인 (실제 Redis 동작은 integration test에서 검증)
         verify(channelMemberRepository, times(1)).findUserIdsByChannelId(CHANNEL_ID);
-
-        // Note: Pipeline을 사용하므로 zSetOperations.add()는 verify 불가
-        // 실제 동작은 integration test 또는 Redis 실행 환경에서 테스트 필요
     }
 
     @Test
@@ -174,7 +169,6 @@ class UnreadCountServiceTest {
 
         // then
         verify(channelMemberRepository, times(1)).findUserIdsByChannelId(CHANNEL_ID);
-        // Pipeline 사용으로 개별 호출 verify 불가 - 로직 테스트는 integration test에서
     }
 
     @Test
@@ -190,7 +184,6 @@ class UnreadCountServiceTest {
 
         // then
         verify(channelMemberRepository, times(1)).findUserIdsByChannelId(CHANNEL_ID);
-        // Early return으로 Pipeline 실행 안 됨 - 로직 확인 완료
     }
 
     @Test

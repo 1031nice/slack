@@ -333,7 +333,6 @@ class ReadReceiptServiceTest {
         readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
 
         // then
-        // Redis 업데이트는 성공해야 함 (Kafka 실패와 무관)
         String expectedKey = "read_receipt:1:100";
         verify(valueOperations, times(1)).set(eq(expectedKey), eq(TIMESTAMP_ID));
         verify(messagingTemplate, times(1)).convertAndSend(
@@ -371,8 +370,6 @@ class ReadReceiptServiceTest {
         readReceiptService.updateReadReceipt(USER_ID, CHANNEL_ID, TIMESTAMP_ID);
 
         // then
-        // Fallback queue에 추가되었는지는 직접 확인 불가 (private)
-        // 대신 metric 증가 확인
         verify(counter, atLeastOnce()).increment();
     }
 

@@ -40,9 +40,9 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/health", "/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/actuator/**").permitAll() // Actuator 엔드포인트는 인증 없이 접근 (메트릭 수집용)
-                .requestMatchers("/ws/**").permitAll() // WebSocket 엔드포인트는 인증 없이 접근 (연결 시 JWT 검증)
-                .requestMatchers("/api/auth/**").permitAll() // 인증 엔드포인트는 인증 없이 접근
+                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/ws/**").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
             );
 

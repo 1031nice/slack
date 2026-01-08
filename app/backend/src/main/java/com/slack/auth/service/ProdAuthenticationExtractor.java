@@ -7,8 +7,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /**
- * 프로덕션 모드용 AuthenticationExtractor 구현체
- * Principal이 OAuth2 Jwt 객체인 경우를 처리합니다.
+ * Production mode AuthenticationExtractor
+ * Handles OAuth2 Jwt principal
  */
 @Slf4j
 @Component

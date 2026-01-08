@@ -104,10 +104,8 @@ class WebSocketMessageServiceTest {
         WebSocketMessage result = webSocketMessageService.handleIncomingMessage(testWebSocketMessage, "auth-123");
 
         // then
-        // UserService 호출 확인
         verify(userService, times(1)).findByAuthUserId("auth-123");
 
-        // MessageService 호출 확인
         ArgumentCaptor<MessageCreateRequest> requestCaptor = ArgumentCaptor.forClass(MessageCreateRequest.class);
         verify(messageService, times(1)).createMessage(eq(1L), requestCaptor.capture());
 
@@ -115,7 +113,6 @@ class WebSocketMessageServiceTest {
         assertThat(capturedRequest.getUserId()).isEqualTo(1L);
         assertThat(capturedRequest.getContent()).isEqualTo("Test message");
 
-        // Redis 발행 확인
         ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
 
@@ -126,7 +123,6 @@ class WebSocketMessageServiceTest {
         assertThat(broadcastedMessage.getUserId()).isEqualTo(1L);
         assertThat(broadcastedMessage.getContent()).isEqualTo("Test message");
 
-        // 반환값 확인
         assertThat(result).isNotNull();
         assertThat(result.getType()).isEqualTo(WebSocketMessage.MessageType.MESSAGE);
         assertThat(result.getChannelId()).isEqualTo(1L);
@@ -200,7 +196,6 @@ class WebSocketMessageServiceTest {
         webSocketMessageService.broadcastToChannel(message);
 
         // then
-        // Redis로 메시지 발행 확인 (RedisMessageSubscriber가 로컬 클라이언트에게 전달)
         ArgumentCaptor<WebSocketMessage> redisCaptor = ArgumentCaptor.forClass(WebSocketMessage.class);
         verify(redisMessagePublisher, times(1)).publish(redisCaptor.capture());
         

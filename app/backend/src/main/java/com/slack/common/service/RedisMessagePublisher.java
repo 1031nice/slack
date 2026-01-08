@@ -10,10 +10,8 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Service;
 
 /**
- * Redis Pub/Sub 메시지 발행 서비스
- * 
- * 로컬 서버에서 생성된 메시지를 Redis로 발행하여
- * 다른 서버들이 수신할 수 있도록 합니다.
+ * Redis Pub/Sub message publisher service
+ * Publishes messages to Redis for other servers to receive
  */
 @Slf4j
 @Service
@@ -24,12 +22,6 @@ public class RedisMessagePublisher {
     private final ChannelTopic messageTopic;
     private final ObjectMapper objectMapper;
 
-    /**
-     * WebSocket 메시지를 Redis로 발행합니다.
-     * 다른 서버들이 이 메시지를 수신하여 로컬 WebSocket 클라이언트에게 전달합니다.
-     * 
-     * @param message 발행할 WebSocket 메시지
-     */
     public void publish(WebSocketMessage message) {
         try {
             String jsonMessage = objectMapper.writeValueAsString(message);

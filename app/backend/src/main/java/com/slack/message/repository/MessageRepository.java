@@ -18,12 +18,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     );
 
     /**
-     * 특정 채널에서 timestamp 이후의 메시지를 조회합니다.
-     * 재연결 시 누락된 메시지를 복구하기 위해 사용됩니다.
-     *
-     * @param channelId 채널 ID
-     * @param afterTimestamp 이 timestamp (timestampId 또는 createdAt) 이후의 메시지 조회
-     * @return timestamp 순서대로 정렬된 메시지 목록
+     * Find messages after a given timestamp for reconnection recovery
      */
     @Query("SELECT m FROM Message m WHERE m.channel.id = :channelId " +
            "AND (m.timestampId > :afterTimestamp OR " +
