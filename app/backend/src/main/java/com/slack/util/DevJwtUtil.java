@@ -13,23 +13,22 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 /**
- * 개발용 간단한 JWT 유틸리티
- * 실제 프로덕션에서는 OAuth2 서버를 사용해야 합니다.
+ * Simple JWT utility for development mode only
+ * Production should use OAuth2 server
  */
 @Component
 @Profile("dev")
 public class DevJwtUtil {
 
-    // 개발용 시크릿 키 (32바이트 이상)
     private static final String SECRET = "dev-secret-key-for-local-development-only-do-not-use-in-production";
     private static final SecretKey KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
     private static final long EXPIRATION_HOURS = 24;
 
     /**
-     * 개발용 JWT 토큰 생성
+     * Generate dev JWT token
      *
-     * @param username 사용자 이름
-     * @return JWT 토큰
+     * @param username username
+     * @return JWT token
      */
     public String generateToken(String username) {
         Instant now = Instant.now();
@@ -37,7 +36,7 @@ public class DevJwtUtil {
 
         return Jwts.builder()
                 .subject(username)
-                .claim("sub", username)  // OAuth2 표준 claim
+                .claim("sub", username)
                 .claim("username", username)
                 .claim("email", username + "@dev.local")
                 .issuedAt(Date.from(now))
@@ -47,36 +46,35 @@ public class DevJwtUtil {
     }
 
     /**
-     * JWT 토큰에서 username 추출
+     * Extract username from JWT token
+     * In dev mode, treats plain text as userId (no validation)
      *
-     * @param token JWT 토큰
+     * @param token JWT token or plain text userId
      * @return username
      */
     public String extractUsername(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(KEY)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.getSubject();
+        try {
+            // Try to parse as JWT first (for backward compatibility)
+            Claims claims = Jwts.parser()
+                    .verifyWith(KEY)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims.getSubject();
+        } catch (Exception e) {
+            // If not a valid JWT, treat the token itself as userId
+            return token;
+        }
     }
 
     /**
-     * JWT 토큰 검증
+     * Validate JWT token
+     * In dev mode, always returns true
      *
-     * @param token JWT 토큰
-     * @return 유효 여부
+     * @param token JWT token or plain text userId
+     * @return always true in dev mode
      */
     public boolean validateToken(String token) {
-        try {
-            Jwts.parser()
-                    .verifyWith(KEY)
-                    .build()
-                    .parseSignedClaims(token);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return true;
     }
 }
