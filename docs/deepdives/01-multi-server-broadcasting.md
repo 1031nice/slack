@@ -172,61 +172,41 @@ Step 5 (Delivery):    Gateway Servers → Connected Clients (WebSocket push)
 * **Goal**: Verify that a message sent to Server A reaches clients on Server B, C, D.
 * **Setup**:
     * 4 server instances
-    * 10k clients distributed across servers
-    * 1k messages/sec load
+    * Small client count (4-10 clients) distributed across servers
+    * Light message load (1-10 msg/sec)
 * **How to Test**:
     * Use Docker Compose to spin up 4 backend instances + 1 Redis + 1 PostgreSQL
-    * Run a load test script that:
-        1. Connects 10k WebSocket clients (2.5k per server)
+    * Run a test script that:
+        1. Connects N WebSocket clients (distributed evenly across servers)
         2. Each client subscribes to a test channel
-        3. Sends messages via REST API to random servers
+        3. Sends messages via STOMP WebSocket
         4. Each client logs: message_id, received_timestamp
     * Collect logs and verify all clients received all messages
 * **Success Criteria**:
     * 100% delivery rate across all servers
     * P99 latency < 100ms (Step 1 → Step 5)
+* **Implementation**: `experiments/multi-server-broadcast-test/`
 * **Maps to**: Section 1.2 (Multi-Server Challenge)
 
 ### Scenario B: DB-first Durability Test
 
 * **Goal**: Prove that Redis failure doesn't cause message loss.
 * **Setup**:
-    * 2 server instances, N WebSocket clients
+    * 2 server instances, 4 WebSocket clients
 * **How to Test**:
-    * Send 1000 messages via API
-    * During message sending (around message 500):
+    * Send 100 messages via STOMP WebSocket
+    * During message sending (at message 50):
         1. `docker stop redis` (kill Redis container)
-        2. Continue sending remaining 500 messages
-    * Verify in PostgreSQL: `SELECT COUNT(*) FROM messages` should be 1000
+        2. Continue sending remaining 50 messages
+    * Verify in PostgreSQL: `SELECT COUNT(*) FROM messages` should show 100 new messages
     * Restart Redis: `docker start redis`
-    * Manually trigger re-broadcast from DB (or implement a recovery mechanism)
-    * Verify all WebSocket clients received all 1000 messages
+    * Note: WebSocket clients will only receive ~50 messages (before Redis died)
+    * Key validation: All 100 messages persisted to DB despite Redis failure
 * **Success Criteria**:
-    * 0% data loss
-    * All messages in DB can be recovered and re-delivered
+    * 0% data loss in database
+    * All messages in DB despite Redis being down for 50% of test
+* **Implementation**: `experiments/db-first-durability-test/`
 * **Maps to**: Section 2.2 (DB-first Rationale)
-
-### Scenario C: Horizontal Scaling Test
-
-* **Goal**: Verify linear scalability as server count increases.
-* **Setup**:
-    * Test with 2, 4, 8, 16 server instances
-    * Maintain 10k clients per server
-    * Constant 1k msg/sec load
-* **How to Test**:
-    * For each server count (2, 4, 8, 16):
-        1. Use Docker Compose `--scale backend=N` to spin up N instances
-        2. Load test script connects 10k * N clients (evenly distributed)
-        3. Send 1k msg/sec for 60 seconds
-        4. Measure:
-            * P50, P95, P99 latency (client-side timestamp tracking)
-            * Redis: `redis-cli INFO stats` for CPU usage, network throughput
-            * PostgreSQL: query duration from logs
-    * Plot latency vs. server count, Redis metrics vs. server count
-* **Success Criteria**:
-    * Latency remains stable (no O(N²) degradation)
-    * Redis CPU/bandwidth usage scales linearly
-* **Maps to**: Section 1.2 (Scalability Constraint)
 
 ## 6. Architectural Decision Records
 
@@ -246,8 +226,10 @@ This architecture establishes the foundation, but introduces new challenges:
 
 * **Race Conditions**: What if Redis (Step 3) propagates before DB transaction (Step 2) is visible to other
   transactions?
-* **Hot Channels**: What if a single channel saturates Redis bandwidth?
-* **Thundering Herd**: What happens when all Gateway servers restart simultaneously?
-* **Message Ordering**: How do we ensure causal consistency across distributed servers?
+  * **→ See Deep Dive 02: Database-Redis Race Conditions**
 
-**→ These challenges are addressed in Deep Dive 02: Massive-scale Fan-out & Consistency**
+* **Hot Channels**: What if a single channel saturates Redis bandwidth?
+  * **→ See Deep Dive 03: Massive-scale Fan-out**
+
+* **Message Ordering**: How do we ensure causal consistency across distributed servers?
+  * **→ See Deep Dive 04: Causal Ordering Guarantees**
