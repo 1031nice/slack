@@ -1,4 +1,4 @@
-# ADR-0001: Redis Pub/Sub for Multi-Server Broadcasting
+# ADR-0001: Redis Pub/Sub for Server-to-Server Broadcasting
 
 ## Metadata
 
@@ -7,7 +7,7 @@
 - **Context**: v0.4 - Distributed Messaging Refinement
 - **Deciders**: Engineering Team
 - **Related Deep Dive**: [Deep Dive 01: Multi-Server Broadcasting Architecture](../deepdives/01-multi-server-broadcasting.md)
-- **Related ADR**: [ADR-0004: Full Payload Strategy](./0004-full-payload-strategy.md) (Proposed)
+- **Related ADR**: [ADR-0002: Full Payload Strategy](./02-full-payload-strategy.md) (Proposed)
 
 ---
 

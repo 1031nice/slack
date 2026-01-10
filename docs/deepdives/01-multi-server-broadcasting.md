@@ -214,11 +214,7 @@ Step 5 (Delivery):    Gateway Servers → Connected Clients (WebSocket push)
 
 This deep dive leads to the following ADRs:
 
-* **ADR-0001**: Use DB-first write path for message durability
-    * Context: See § 2.2 (Write Path Decision)
-    * Decision: Commit to PostgreSQL before publishing to Redis
-
-* **ADR-0002**: Use Redis Pub/Sub for server-to-server broadcasting
+* **ADR-01**: Redis Pub/Sub for Broadcasting
     * Context: See § 3.1 (Broker Comparison)
     * Decision: Redis Pub/Sub as the real-time fan-out layer
 

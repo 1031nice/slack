@@ -1,4 +1,4 @@
-# ADR-0008: Distributed Message Ordering Strategy
+# ADR-0003: Distributed Message Ordering Strategy (Snowflake ID)
 
 ## Metadata
 
@@ -7,7 +7,7 @@
 - **Context**: v0.5 - Causal Consistency Implementation
 - **Deciders**: Engineering Team
 - **Related Deep Dive**: [Deep Dive 04: Causal Ordering in Distributed Systems](../deepdives/04-causal-ordering.md)
-- **Related ADR**: [ADR-0001: Redis Pub/Sub](./0001-redis-for-broadcasting.md)
+- **Related ADR**: [ADR-0001: Redis Pub/Sub](./01-redis-pubsub-broadcasting.md)
 
 ---
 

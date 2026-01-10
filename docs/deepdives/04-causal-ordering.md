@@ -73,23 +73,44 @@ Route all messages for a specific channel to a dedicated partition in a distribu
 
 ## 4. Conclusion
 
+
+
 We adopt **Pattern C (Distributed Time-based IDs)** as the standard for message ordering.
 
+
+
 1.  **Why not Kafka (Pattern D)?**
+
     *   While Kafka guarantees perfect ordering, the **latency overhead** (disk I/O + polling) violates our <100ms real-time budget.
+
     *   The **Hot Partition** problem makes it risky for mega-channels.
+
     *   Snowflake IDs provide "good enough" ordering with superior speed and scalability.
 
-2.  **ID Generation**: Use **Snowflake IDs** (or TSID/ULID). This aligns with `ADR-06`.
+
+
+2.  **ID Generation**: Use **Snowflake IDs** (or TSID/ULID). This aligns with `ADR-04`.
+
 3.  **Ordering Responsibility**: **Client-Side Reordering**.
+
     *   Servers deliver messages as fast as possible (potentially out of order).
+
     *   Clients buffer incoming messages for a short window (e.g., 100-500ms) and sort them by ID before rendering.
-    *   *See ADR-08 for implementation details.*
+
+    *   *See ADR-03 for implementation details.*
+
 4.  **Conflict Resolution**: If two messages have the exact same millisecond timestamp, the distinct `Machine ID` or `Sequence` in the Snowflake ID acts as the deterministic tie-breaker.
+
+
 
 ## 5. Related Topics
 
+
+
 *   **Event-Driven Architecture**: Moving away from monolithic sequences.
-    *   **→ See ADR-06**
+
+    *   **→ See ADR-04**
+
 *   **Client-Side Reordering**: Handling out-of-order delivery.
-    *   **→ See ADR-08**
+
+    *   **→ See ADR-03**

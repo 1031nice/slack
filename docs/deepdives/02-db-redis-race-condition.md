@@ -64,7 +64,24 @@ Write to a global cache (Redis) synchronously with the DB transaction.
 
 ## 5. Related Topics
 
+
+
 *   **Massive Fan-out**: Bandwidth implications of Pattern A.
+
     *   **→ See Deep Dive 03**
+
 *   **Causal Ordering**: Ordering guarantees for asynchronous events.
+
     *   **→ See Deep Dive 04**
+
+
+
+## 6. Architectural Decision Records
+
+
+
+*   **ADR-02**: Full Payload Strategy for Consistency
+
+    *   Context: See § 2 (Solution Strategy)
+
+    *   Decision: Include full payload in WebSocket events to prevent race conditions.

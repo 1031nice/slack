@@ -1,11 +1,29 @@
-# ADR-0002: Event-Based Architecture for Distributed Messaging
+# ADR-0004: Event-Driven Architecture (Migration from Monolith)
 
-**Status**: Proposed
-**Date**: 2025-12-20
-**Supersedes**: Current sequence-based ordering (v0.3)
+## Metadata
+
+- **Status**: Accepted ✅
+- **Date**: 2026-01-10
+- **Context**: v0.6 - Legacy Refactoring
+- **Deciders**: Engineering Team
+- **Related Deep Dive**: [Deep Dive 01: Multi-Server Broadcasting Architecture](../deepdives/01-multi-server-broadcasting.md)
+- **Related ADR**: [ADR-0001: Redis Pub/Sub](./01-redis-pubsub-broadcasting.md), [ADR-0003: Distributed Ordering](./03-snowflake-id-ordering.md)
 
 ---
 
+## TL;DR (Executive Summary)
+
+**Decision**: Migrate from a "Sequence-based Monolithic" architecture to an **"Event-Driven Distributed"** architecture.
+
+**Key Change**:
+*   **Old**: `Redis INCR` for global sequence -> Single Redis dependency.
+*   **New**: `Snowflake ID` + `Redis Pub/Sub` -> Decoupled, horizontally scalable events.
+
+**Rationale**: The previous sequence-based architecture created a hard dependency on a single Redis instance for **every message write**, making it a Single Point of Failure and a scalability bottleneck. The new architecture decouples ID generation (Snowflake) from message propagation (Pub/Sub), allowing the system to scale indefinitely.
+
+---
+
+## Context
 ## Context
 
 ### Current System (v0.3): Sequence-Based Ordering

@@ -32,13 +32,13 @@ Store everything in Redis. No DB sync.
 
 ### Pattern C: Write-Behind via Scheduled Sync (Eventual Consistency)
 Use Redis as the primary store, and a background job syncs snapshots to DB.
-*   **Target**: **Unread Counts** (`ADR-02`)
+*   **Target**: **Unread Counts** (`ADR-52`)
 *   **Mechanism**: `Redis INCR` → Scheduled Task scans & batches updates to DB.
 *   **Rationale**: Unread counts change too fast to capture every transition. Snapshotting the "final count" every few seconds is sufficient.
 
 ### Pattern D: Write-Behind via Event Streaming (Eventual Consistency)
 Use a message queue (Kafka) to buffer write events before persisting to DB.
-*   **Target**: **Read Receipts** (`ADR-07`)
+*   **Target**: **Read Receipts** (`ADR-06`)
 *   **Mechanism**: `API` → `Kafka` → `Consumer Group` → `DB Batch Upsert`.
 *   **Rationale**: Read receipts are critical user state. Kafka ensures **durability** (no data loss) while acting as a **shock absorber** (backpressure) to protect the DB from traffic spikes.
 
@@ -59,16 +59,30 @@ We adopt a hybrid strategy based on data characteristics:
 1.  **Unread Counts**: Use **Pattern C (Redis + Scheduled Sync)**.
     *   Prioritize speed and deduplication (ZSET).
     *   Accept minor snapshot loss during sync.
-    *   *See ADR-02, ADR-03.*
+    *   *See ADR-05, ADR-52.*
 
 2.  **Read Receipts**: Use **Pattern D (Kafka + Batch Consumer)**.
     *   Prioritize durability and burst handling.
     *   Use Kafka to decouple API write throughput from DB capacity.
-    *   *See ADR-07.*
+    *   *See ADR-06.*
 
 ## 5. Related Topics
 
 *   **Massive Fan-out**: How to efficiently trigger the "Increment" event for 100k users.
     *   **→ See Deep Dive 03**
 *   **Redis Data Structures**: Why ZSET is used for counts.
-    *   **→ See ADR-03**
+    *   **→ See ADR-05**
+
+## 6. Architectural Decision Records
+
+*   **ADR-05**: Redis ZSET for Unread Counts
+    *   Context: See § 2 (Data Structure)
+    *   Decision: Use Redis Sorted Sets for idempotent unread tracking.
+
+*   **ADR-52**: Eventual Consistency for Unread Counts
+    *   Context: See § 3 (Consistency Model)
+    *   Decision: Accept AP consistency model for unread counts.
+
+*   **ADR-06**: Async Persistence for Read Receipts
+    *   Context: See § 4 (Persistence Strategy)
+    *   Decision: Use Write-Behind pattern to protect DB from read spikes.
