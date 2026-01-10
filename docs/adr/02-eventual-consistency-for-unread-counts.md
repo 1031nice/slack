@@ -1,4 +1,4 @@
-# ADR-0002: Eventual Consistency for Read Status
+# ADR-02: Eventual Consistency for Unread Counts
 
 ## Metadata
 

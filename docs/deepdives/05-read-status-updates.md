@@ -6,71 +6,69 @@
 
 ### 1.1 The Write-Heavy Workload
 Unlike message sending (1 write per message), managing read status generates a massive write multiplier:
-*   **Fan-out Write**: When 1 message is sent to a channel with 1,000 members, the system must increment **1,000 unread counters**.
-*   **Frequent Updates**: Every time a user opens a channel, their unread count must reset to 0 and their "last read" timestamp must update.
+*   **Write Amplification (Unread Count)**: When 1 message is sent to a channel with 1,000 members, the system must increment **1,000 unread counters**.
+*   **High Frequency (Read Receipt)**: Every time a user opens a channel or scrolls, their "last read" timestamp updates. This creates a relentless stream of DB updates.
 
-### 1.2 The Consistency Dilemma
-*   **Database (PostgreSQL)**: Provides durability and strong consistency but creates a bottleneck under high write concurrency (locking, disk I/O).
-*   **Cache (Redis)**: Provides blazing speed and atomic increments but risks data loss during crashes.
+### 1.2 The Data Consistency Dilemma
+We deal with two types of data with different requirements:
+1.  **Unread Count**: Derived data (can be recalculated). Speed is critical.
+2.  **Read Receipt**: Source of truth (user state). Durability is critical.
 
-**Goal**: Design a system that handles 10k+ ops/sec for unread updates without crashing the DB, while ensuring data durability across device sessions.
+**Goal**: Design a system that handles 10k+ ops/sec for status updates without crashing the DB, while ensuring appropriate durability for each data type.
 
 ## 2. Solution Strategy Exploration
 
-We analyze three architectural patterns to handle this specific workload.
+We analyze architectural patterns to handle these specific workloads.
 
 ### Pattern A: Synchronous DB Write (Strong Consistency)
 Directly update the database for every single read/unread event.
-
-*   **Flow**: `Event` → `DB UPDATE` → `Cache Invalidate`
-*   **Pros**:
-    *   **Simple Consistency**: Source of truth is always the DB. No synchronization logic needed.
-    *   **Durability**: Zero data loss guarantee.
-*   **Cons**:
-    *   **Performance Bottleneck**: Database row locks (e.g., updating user rows) severely limit throughput.
-    *   **Cost**: Scaling DB writes is expensive compared to scaling Redis.
+*   **Pros**: Simple consistency, zero data loss.
+*   **Cons**: **DB bottleneck**. 1,000 users reading a message = 1,000 DB transactions. Unacceptable at scale.
 
 ### Pattern B: Redis-Only (Ephemeral State)
-Store unread counts and read receipts entirely in Redis.
+Store everything in Redis. No DB sync.
+*   **Pros**: Extremely fast (<1ms), simplest implementation.
+*   **Cons**: **Data loss risk**. If Redis restarts, users lose their "read position" and everything resets to unread. Acceptable for counts (maybe), unacceptable for receipts.
 
-*   **Flow**: `Event` → `Redis INCR`
-*   **Pros**:
-    *   **Maximum Performance**: In-memory operations are incredibly fast (<1ms).
-    *   **Zero DB Load**: The database is completely bypassed.
-*   **Cons**:
-    *   **Data Loss Risk**: If Redis restarts, all unread counts disappear. Users see "0 unread" even if they missed messages.
-    *   **Cold Start**: New devices or cleared caches have no data source to restore from.
+### Pattern C: Write-Behind via Scheduled Sync (Eventual Consistency)
+Use Redis as the primary store, and a background job syncs snapshots to DB.
+*   **Target**: **Unread Counts** (`ADR-02`)
+*   **Mechanism**: `Redis INCR` → Scheduled Task scans & batches updates to DB.
+*   **Rationale**: Unread counts change too fast to capture every transition. Snapshotting the "final count" every few seconds is sufficient.
 
-### Pattern C: Write-Behind Caching (Eventual Consistency)
-Use Redis as the primary data store for writes, and asynchronously persist batched updates to the DB.
-
-*   **Flow**: `Event` → `Redis INCR` (Immediate) → `Background Sync` (Every N seconds) → `DB Batch UPDATE`
-*   **Pros**:
-    *   **High Throughput**: User-facing latency is minimal (Redis speed).
-    *   **Durability**: Data is periodically saved to DB.
-    *   **Reduced DB Pressure**: 1,000 increments become 1 batch update (Write Coalescing).
-*   **Cons**:
-    *   **Consistency Lag**: A small window (e.g., 5-10s) exists where the DB is stale.
-    *   **Recovery Complexity**: Requires logic to restore Redis from DB after a crash.
+### Pattern D: Write-Behind via Event Streaming (Eventual Consistency)
+Use a message queue (Kafka) to buffer write events before persisting to DB.
+*   **Target**: **Read Receipts** (`ADR-07`)
+*   **Mechanism**: `API` → `Kafka` → `Consumer Group` → `DB Batch Upsert`.
+*   **Rationale**: Read receipts are critical user state. Kafka ensures **durability** (no data loss) while acting as a **shock absorber** (backpressure) to protect the DB from traffic spikes.
 
 ## 3. Comparative Analysis
 
-| Feature | Pattern A (DB Sync) | Pattern B (Redis Only) | Pattern C (Write-Behind) |
-| :--- | :--- | :--- | :--- |
-| **Throughput** | 🔴 Low | 🟢 Very High | 🟢 High |
-| **Write Latency** | 🔴 High (10-50ms) | 🟢 Low (<1ms) | 🟢 Low (<1ms) |
-| **Durability** | 🟢 Guaranteed | 🔴 None | 🟡 Good (Checkpoint) |
-| **DB Load** | 🔴 High | 🟢 None | 🟢 Low (Batched) |
-| **Complexity** | 🟢 Low | 🟢 Low | 🔴 High (Sync Logic) |
+| Feature | Pattern A (DB Sync) | Pattern B (Redis Only) | Pattern C (Scheduled Sync) | Pattern D (Kafka Streaming) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Throughput** | 🔴 Low | 🟢 Very High | 🟢 Very High | 🟢 High |
+| **Durability** | 🟢 Guaranteed | 🔴 None | 🟡 Snapshot (Lossy) | 🟢 Guaranteed (Log) |
+| **Latency** | 🔴 High | 🟢 Low (<1ms) | 🟢 Low (Redis) | 🟢 Low (Async) |
+| **Complexity** | 🟢 Low | 🟢 Low | 🟡 Medium | 🔴 High |
+| **Best For** | MVP | Ephemeral Data | **Unread Counts** | **Read Receipts** |
 
 ## 4. Conclusion
 
-*   **Pattern A** is suitable for low-traffic MVPs where simplicity outweighs performance.
-*   **Pattern B** works for ephemeral data (e.g., "Online Status") but is unacceptable for persistent user state like Unread Counts.
-*   **Pattern C** is the industry standard for high-scale chat systems (like Slack/Discord). It trades strict consistency for massive write throughput and DB protection.
+We adopt a hybrid strategy based on data characteristics:
+
+1.  **Unread Counts**: Use **Pattern C (Redis + Scheduled Sync)**.
+    *   Prioritize speed and deduplication (ZSET).
+    *   Accept minor snapshot loss during sync.
+    *   *See ADR-02, ADR-03.*
+
+2.  **Read Receipts**: Use **Pattern D (Kafka + Batch Consumer)**.
+    *   Prioritize durability and burst handling.
+    *   Use Kafka to decouple API write throughput from DB capacity.
+    *   *See ADR-07.*
 
 ## 5. Related Topics
 
 *   **Massive Fan-out**: How to efficiently trigger the "Increment" event for 100k users.
     *   **→ See Deep Dive 03**
-*   **Redis Data Structures**: Choosing between `Hashes`, `Sorted Sets`, or `Bitmaps` for storage optimization.
+*   **Redis Data Structures**: Why ZSET is used for counts.
+    *   **→ See ADR-03**
