@@ -73,37 +73,41 @@ Route all messages for a specific channel to a dedicated partition in a distribu
 
 ## 4. Conclusion
 
-
-
-We adopt **Pattern C (Distributed Time-based IDs)** as the standard for message ordering.
-
-
+We adopt **Pattern C (Distributed Time-based IDs)** combined with **Soft Ordering (Insertion)** on the client side.
 
 1.  **Why not Kafka (Pattern D)?**
+    *   Latency overhead (disk I/O + polling) violates our <100ms real-time budget.
+    *   Snowflake IDs provide "good enough" ordering with superior speed.
 
-    *   While Kafka guarantees perfect ordering, the **latency overhead** (disk I/O + polling) violates our <100ms real-time budget.
+2.  **ID Generation**: Use **Snowflake IDs**. (See `ADR-04`)
 
-    *   The **Hot Partition** problem makes it risky for mega-channels.
+3.  **Ordering Responsibility**: **Client-Side Soft Ordering**.
+    *   **Strategy**: "Insert at Correct Position".
+    *   **Mechanism**: When a message arrives, the client inserts it into the UI list based on its Snowflake ID sort order.
+    *   **Benefit**: Zero added latency. Late-arriving messages (Jitter) simply "snap" into their correct historical place.
+    *   **Rejected Option**: "Buffer & Wait" (Holding messages for 200ms) was rejected because it introduces artificial latency that degrades the real-time feel.
 
-    *   Snowflake IDs provide "good enough" ordering with superior speed and scalability.
+4.  **Conflict Resolution**: Snowflake ID (Timestamp + MachineID + Sequence) is the deterministic tie-breaker.
 
+## 5. Experiment Plan (Causal Ordering Lab)
 
+To validate **Pattern C (Snowflake IDs + Soft Ordering)**, we verify that the client can maintain a sorted state despite network jitter, without artificial delays.
 
-2.  **ID Generation**: Use **Snowflake IDs** (or TSID/ULID). This aligns with `ADR-04`.
+### Scenario: Network Jitter Simulation
+*   **Goal**: Verify that **Soft Ordering (Insertion)** achieves 100% eventual consistency with 0ms added latency, compared to the "Buffer & Wait" strategy.
+*   **Hypothesis**: Insertion logic allows the UI to eventually reflect the perfect order without the 200ms penalty of buffering.
+*   **Setup**:
+    *   **Producer**: Generates 1,000 messages with Snowflake IDs.
+    *   **Network**: Introduces random jitter (0-100ms).
+    *   **Consumer (Client)**:
+        *   **Strategy A (Buffer & Wait)**: Hold 200ms, then render. (Rejected Benchmark)
+        *   **Strategy B (Soft Ordering)**: Render immediately at `sorted_index`. (Selected Solution)
+*   **Success Criteria**:
+    *   Strategy B Final State: 100% sorted.
+    *   Strategy B Latency: 0ms (processing time only).
+*   **Implementation**: `experiments/causal-ordering-lab/`
 
-3.  **Ordering Responsibility**: **Client-Side Reordering**.
-
-    *   Servers deliver messages as fast as possible (potentially out of order).
-
-    *   Clients buffer incoming messages for a short window (e.g., 100-500ms) and sort them by ID before rendering.
-
-    *   *See ADR-03 for implementation details.*
-
-4.  **Conflict Resolution**: If two messages have the exact same millisecond timestamp, the distinct `Machine ID` or `Sequence` in the Snowflake ID acts as the deterministic tie-breaker.
-
-
-
-## 5. Related Topics
+## 6. Related Topics
 
 
 
