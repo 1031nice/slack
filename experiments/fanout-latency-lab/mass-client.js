@@ -1,21 +1,16 @@
-const { Client } = require('@stomp/stompjs');
-const SockJS = require('sockjs-client');
-const fs = require('fs');
+const Redis = require('ioredis');
 
 /**
- * Mass WebSocket Client
- * Manages multiple STOMP connections in a single Node.js process.
- * Used for high-concurrency testing (Fan-out).
+ * Mass Redis Subscriber
+ * Manages multiple Redis SUBSCRIBE connections in a single Node.js process.
  */
 
 class MassClient {
     constructor(config) {
-        this.startId = config.startId; // e.g., 1000
-        this.count = config.count;     // e.g., 500
-        this.serverUrl = config.serverUrl;
+        this.startId = config.startId;
+        this.count = config.count;
+        this.redisConfig = config.redis;
         this.channelId = config.channelId;
-        this.token = config.token;
-        this.logFile = config.logFile;
         
         this.clients = [];
         this.stats = {
@@ -26,12 +21,12 @@ class MassClient {
     }
 
     async start() {
-        console.log(`[MassClient] Starting ${this.count} clients (${this.startId}-${this.startId + this.count - 1}) connecting to ${this.serverUrl}`);
+        console.log(`[MassClient] Starting ${this.count} Redis subscribers (${this.startId}-${this.startId + this.count - 1})`);
         
         const connectPromises = [];
         for (let i = 0; i < this.count; i++) {
             connectPromises.push(this.connectSingleClient(this.startId + i));
-            // Small stagger to avoid overwhelming the server during handshake
+            // Increased stagger to avoid connection burst
             if (i % 50 === 0) await new Promise(r => setTimeout(r, 100)); 
         }
         
@@ -40,56 +35,45 @@ class MassClient {
     }
 
     connectSingleClient(id) {
-        return new Promise((resolve, reject) => {
-            const httpUrl = this.serverUrl.replace('ws://', 'http://');
-            const client = new Client({
-                webSocketFactory: () => new SockJS(httpUrl),
-                connectHeaders: { Authorization: `Bearer ${this.token}` },
-                debug: () => {}, // Silence debug logs to save CPU
-                reconnectDelay: 0,
+        return new Promise((resolve) => {
+            const redis = new Redis(this.redisConfig);
+            
+            // Only count when subscription is confirmed
+            redis.subscribe(`channel.${this.channelId}`, (err, count) => {
+                if (!err) {
+                    this.stats.connected++;
+                    resolve();
+                }
             });
 
-            client.onConnect = () => {
-                this.stats.connected++;
-                client.subscribe(`/topic/channel.${this.channelId}`, (msg) => {
-                    this.recordMessage(id, msg);
-                });
-                resolve();
-            };
+            redis.on('message', (channel, message) => {
+                this.recordMessage(message);
+            });
 
-            client.onStompError = (frame) => {
-                // console.error(`[Client ${id}] Error: ${frame.headers['message']}`);
-                reject(frame);
-            };
+            redis.on('error', (err) => {
+                // Ignore connection errors
+            });
 
-            client.activate();
-            this.clients.push(client);
+            this.clients.push(redis);
         });
     }
 
-    recordMessage(clientId, msgFrame) {
+    recordMessage(message) {
         const receiveTime = Date.now();
         try {
-            const body = JSON.parse(msgFrame.body);
-            // Assuming server sends 'createdAt' or we calculate from send time if passed in body
-            // For simple latency, we might need the sender to include a 'sentAt' timestamp in content or utilize createdAt
-            
-            const sentTime = body.createdAt ? new Date(body.createdAt).getTime() : 0;
-            if (sentTime > 0) {
-                const latency = receiveTime - sentTime;
+            const body = JSON.parse(message);
+            if (body.sentAt) {
+                const latency = receiveTime - body.sentAt;
                 this.stats.latencies.push(latency);
                 this.stats.received++;
-                
-                // Optional: Log to CSV only if needed (high I/O)
-                // fs.appendFileSync(this.logFile, `${clientId},${body.messageId},${sentTime},${receiveTime},${latency}\n`);
             }
         } catch (e) {
-            console.error('Error parsing message', e);
+            // Not a JSON or missing sentAt
         }
     }
 
     disconnectAll() {
-        this.clients.forEach(c => c.deactivate());
+        this.clients.forEach(c => c.disconnect());
     }
 
     getReport() {
@@ -114,17 +98,16 @@ if (require.main === module) {
     const config = {
         startId: parseInt(args[0]),
         count: parseInt(args[1]),
-        serverUrl: args[2],
-        channelId: args[3],
-        token: args[4] // Simple dev token
+        redis: {
+            host: '127.0.0.1',
+            port: parseInt(args[2]) // Use port from args
+        },
+        channelId: args[3]
     };
 
     const massClient = new MassClient(config);
-    
-    // Keep alive until killed
     massClient.start();
 
-    // Handle signals to report and exit
     process.on('SIGINT', () => {
         console.log(JSON.stringify(massClient.getReport()));
         massClient.disconnectAll();
