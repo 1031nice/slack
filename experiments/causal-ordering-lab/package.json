@@ -1,0 +1,10 @@
+{
+  "name": "causal-ordering-lab",
+  "version": "1.0.0",
+  "description": "Simulation of Network Jitter and Client-Side Reordering",
+  "private": true,
+  "main": "jitter-simulation.js",
+  "dependencies": {
+    "snowflake-id": "^1.1.0"
+  }
+}

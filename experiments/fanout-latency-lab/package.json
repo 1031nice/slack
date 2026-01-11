@@ -1,0 +1,10 @@
+{
+  "name": "fanout-latency-lab",
+  "version": "1.0.0",
+  "description": "Massive Fan-out Latency Experiment",
+  "private": true,
+  "dependencies": {
+    "@stomp/stompjs": "^7.0.0",
+    "sockjs-client": "^1.6.1"
+  }
+}
