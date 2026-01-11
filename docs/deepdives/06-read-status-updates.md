@@ -1,4 +1,4 @@
-# 📄 Topic 05: High-Throughput Read Status Management
+# 📄 Topic 06: High-Throughput Read Status Management
 
 > **Prerequisites**: This document addresses the scalability challenges of managing "Unread Counts" and "Read Receipts" in a high-volume chat application.
 

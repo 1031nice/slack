@@ -1,4 +1,4 @@
-# 📄 Topic 04: Causal Ordering in Distributed Systems
+# 📄 Topic 05: Causal Ordering in Distributed Systems
 
 > **Prerequisites**: This document addresses the challenge of maintaining message order across distributed servers, network partitions, and asynchronous delivery paths.
 

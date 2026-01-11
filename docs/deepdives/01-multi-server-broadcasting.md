@@ -229,5 +229,8 @@ This architecture establishes the foundation, but introduces new challenges:
 * **Hot Channels**: What if a single channel saturates Redis bandwidth?
   * **→ See Deep Dive 03: Massive-scale Fan-out**
 
+* **Internal Efficiency**: How do we optimize communication between logic and connections at scale?
+  * **→ See Deep Dive 04: Gateway Separation & gRPC Optimization**
+
 * **Message Ordering**: How do we ensure causal consistency across distributed servers?
-  * **→ See Deep Dive 04: Causal Ordering Guarantees**
+  * **→ See Deep Dive 05: Causal Ordering Guarantees**

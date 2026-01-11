@@ -72,7 +72,7 @@ Write to a global cache (Redis) synchronously with the DB transaction.
 
 *   **Causal Ordering**: Ordering guarantees for asynchronous events.
 
-    *   **→ See Deep Dive 04**
+    *   **→ See Deep Dive 05**
 
 
 
