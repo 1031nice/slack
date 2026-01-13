@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package gateway;
+
+service GatewayService {
+  rpc PushMessage (MessageRequest) returns (MessageResponse) {}
+  rpc PushStream (stream MessageRequest) returns (MessageResponse) {}
+}
+
+message MessageRequest {
+  string id = 1;
+  string channel_id = 2;
+  string user_id = 3;
+  string content = 4;
+  int64 timestamp = 5;
+}
+
+message MessageResponse {
+  bool success = 1;
+}
