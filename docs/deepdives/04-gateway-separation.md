@@ -101,6 +101,7 @@ Prove that gRPC Streaming is not just "slightly" faster, but architecturally nec
 ### Decisions
 1.  **Split Architecture**: Adopt Gateway/Logic separation.
 2.  **Protocol**: Use **gRPC Bidirectional Streaming** for internal links.
+    *   **→ Decision Recorded in [ADR-0009: gRPC Streaming](../adr/09-gateway-grpc-streaming.md)**
 3.  **Discovery**: Logic Servers needs a mechanism to discover Gateways (e.g., K8s Service, Consul, or Etcd) to open streams.
 
 ### Next Steps
