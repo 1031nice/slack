@@ -6,14 +6,14 @@
 - **Date**: 2026-01-10
 - **Context**: v0.5 - Causal Consistency Implementation
 - **Deciders**: Engineering Team
-- **Related Deep Dive**: [Deep Dive 04: Causal Ordering in Distributed Systems](../deepdives/04-causal-ordering.md)
+- **Related Deep Dive**: [Deep Dive 05: Causal Ordering in Distributed Systems](../deepdives/05-causal-ordering.md)
 - **Related ADR**: [ADR-0001: Redis Pub/Sub](./01-redis-pubsub-broadcasting.md)
 
 ---
 
 ## TL;DR (Executive Summary)
 
-**Decision**: Adopt **Snowflake IDs (Distributed Time-based IDs)** for message generation and enforce **Client-Side Reordering**.
+**Decision**: Adopt **Snowflake IDs (Distributed Time-based IDs)** for message generation and enforce **Client-Side Ordered Insertion.
 
 **Key Trade-off**: Accept **Rough Ordering** (dependent on clock synchronization) in exchange for **Infinite Scalability** and removing centralized bottlenecks.
 
@@ -44,7 +44,7 @@ In a distributed chat system, messages for a single channel may originate from d
 
 1.  **ID Generation**: **Snowflake IDs** (64-bit integers).
     - `Timestamp (41b)` | `Machine ID (10b)` | `Sequence (12b)`
-2.  **Ordering Responsibility**: **Client-Side Reordering**.
+2.  **Ordering Responsibility**: **Client-Side Ordered Insertion.
 
 ### Architecture Flow
 
@@ -105,7 +105,7 @@ We rejected the **Central Sequencer** because it introduces a Single Point of Fa
 
 ## References
 
-- **[Deep Dive 04: Causal Ordering in Distributed Systems](../deepdives/04-causal-ordering.md)**
+- **[Deep Dive 05: Causal Ordering in Distributed Systems](../deepdives/05-causal-ordering.md)**
   - Detailed analysis of ordering patterns.
 - **[Twitter Snowflake](https://github.com/twitter-archive/snowflake/tree/snowflake-2010)**
   - Original implementation of the ID generation algorithm.

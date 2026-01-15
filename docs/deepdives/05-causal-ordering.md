@@ -73,15 +73,15 @@ Route all messages for a specific channel to a dedicated partition in a distribu
 
 ## 4. Conclusion
 
-We adopt **Pattern C (Distributed Time-based IDs)** combined with **Soft Ordering (Insertion)** on the client side.
+We adopt **Pattern C (Distributed Time-based IDs)** combined with **Ordered Insertion (Insertion)** on the client side.
 
 1.  **Why not Kafka (Pattern D)?**
     *   Latency overhead (disk I/O + polling) violates our <100ms real-time budget.
     *   Snowflake IDs provide "good enough" ordering with superior speed.
 
-2.  **ID Generation**: Use **Snowflake IDs**. (See `ADR-04`)
+2.  **ID Generation**: Use **Snowflake IDs**. (See `ADR-03`)
 
-3.  **Ordering Responsibility**: **Client-Side Soft Ordering**.
+3.  **Ordering Responsibility**: **Client-Side Ordered Insertion**.
     *   **Strategy**: "Insert at Correct Position".
     *   **Mechanism**: When a message arrives, the client inserts it into the UI list based on its Snowflake ID sort order.
     *   **Benefit**: Zero added latency. Late-arriving messages (Jitter) simply "snap" into their correct historical place.
@@ -91,17 +91,17 @@ We adopt **Pattern C (Distributed Time-based IDs)** combined with **Soft Orderin
 
 ## 5. Experiment Plan (Causal Ordering Lab)
 
-To validate **Pattern C (Snowflake IDs + Soft Ordering)**, we verify that the client can maintain a sorted state despite network jitter, without artificial delays.
+To validate **Pattern C (Snowflake IDs + Ordered Insertion)**, we verify that the client can maintain a sorted state despite network jitter, without artificial delays.
 
 ### Scenario: Network Jitter Simulation
-*   **Goal**: Verify that **Soft Ordering (Insertion)** achieves 100% eventual consistency with 0ms added latency, compared to the "Buffer & Wait" strategy.
+*   **Goal**: Verify that **Ordered Insertion (Insertion)** achieves 100% eventual consistency with 0ms added latency, compared to the "Buffer & Wait" strategy.
 *   **Hypothesis**: Insertion logic allows the UI to eventually reflect the perfect order without the 200ms penalty of buffering.
 *   **Setup**:
     *   **Producer**: Generates 1,000 messages with Snowflake IDs.
     *   **Network**: Introduces random jitter (0-100ms).
     *   **Consumer (Client)**:
         *   **Strategy A (Buffer & Wait)**: Hold 200ms, then render. (Rejected Benchmark)
-        *   **Strategy B (Soft Ordering)**: Render immediately at `sorted_index`. (Selected Solution)
+        *   **Strategy B (Ordered Insertion)**: Render immediately at `sorted_index`. (Selected Solution)
 *   **Success Criteria**:
     *   Strategy B Final State: 100% sorted.
     *   Strategy B Latency: 0ms (processing time only).
