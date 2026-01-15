@@ -73,7 +73,7 @@ Route all messages for a specific channel to a dedicated partition in a distribu
 
 ## 4. Conclusion
 
-We adopt **Pattern C (Distributed Time-based IDs)** combined with **Ordered Insertion (Insertion)** on the client side.
+We adopt **Pattern C (Distributed Time-based IDs)** combined with **Ordered Insertion** on the client side.
 
 1.  **Why not Kafka (Pattern D)?**
     *   Latency overhead (disk I/O + polling) violates our <100ms real-time budget.
@@ -89,23 +89,30 @@ We adopt **Pattern C (Distributed Time-based IDs)** combined with **Ordered Inse
 
 4.  **Conflict Resolution**: Snowflake ID (Timestamp + MachineID + Sequence) is the deterministic tie-breaker.
 
-## 5. Experiment Plan (Causal Ordering Lab)
+## 5. Experiment Results (Causal Ordering Lab)
 
-To validate **Pattern C (Snowflake IDs + Ordered Insertion)**, we verify that the client can maintain a sorted state despite network jitter, without artificial delays.
-
-### Scenario: Network Jitter Simulation
-*   **Goal**: Verify that **Ordered Insertion (Insertion)** achieves 100% eventual consistency with 0ms added latency, compared to the "Buffer & Wait" strategy.
-*   **Hypothesis**: Insertion logic allows the UI to eventually reflect the perfect order without the 200ms penalty of buffering.
-*   **Setup**:
-    *   **Producer**: Generates 1,000 messages with Snowflake IDs.
-    *   **Network**: Introduces random jitter (0-100ms).
-    *   **Consumer (Client)**:
-        *   **Strategy A (Buffer & Wait)**: Hold 200ms, then render. (Rejected Benchmark)
-        *   **Strategy B (Ordered Insertion)**: Render immediately at `sorted_index`. (Selected Solution)
-*   **Success Criteria**:
-    *   Strategy B Final State: 100% sorted.
-    *   Strategy B Latency: 0ms (processing time only).
+### 5.1 Environment
 *   **Implementation**: `experiments/causal-ordering-lab/`
+*   **Generators**: 3 independent Snowflake ID generators simulating distributed nodes.
+*   **Load**: 300 messages shuffled by network jitter (0-200ms).
+
+### 5.2 Scenario A: Network Jitter (Success)
+We compared "Naive Append" (push as received) vs "Ordered Insertion" (sort by ID).
+
+| Strategy | Inversion Count | Result |
+| :--- | :--- | :--- |
+| **Naive Append** | 145 / 300 | **Fail**. Chat history is unreadable due to massive disorder. |
+| **Ordered Insertion** | **0 / 300** | **Success**. Perfect eventual consistency with 0ms buffering latency. |
+
+### 5.3 Scenario B: Clock Skew Failure (Warning)
+We simulated Node 3 having a clock drift of **-5000ms** (5 seconds slow).
+*   **Result**: Messages from Node 3 appeared "in the past".
+*   **Impact**: A reply from Node 3 appeared **before** the question from Node 1 in the chat history.
+*   **Critical Lesson**: **Ordered Insertion cannot fix Clock Skew**. The underlying IDs must be generated from synchronized clocks.
+
+### 5.4 Verdict
+1.  **Client-side Ordered Insertion** effectively eliminates network jitter issues without UX latency penalties.
+2.  **Infrastructure Prerequisite**: **NTP (Network Time Protocol)** is mandatory. Clock skew > 100ms will permanently break causal ordering, as the client will faithfully sort the "wrong" IDs into the "wrong" order.
 
 ## 6. Related Topics
 
