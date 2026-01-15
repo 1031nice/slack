@@ -6,7 +6,7 @@
 - **Date**: 2026-01-10
 - **Context**: v0.4 - Distributed Messaging Refinement
 - **Deciders**: Engineering Team
-- **Related Deep Dive**: [Deep Dive 05: Read Status Updates](../deepdives/05-read-status-updates.md)
+- **Related Deep Dive**: [Deep Dive 06: Read Status Updates](../deepdives/06-read-status-updates.md)
 - **Related ADR**: [ADR-0005: Redis ZSET for Unread Counts](./05-redis-zset-unread-counts.md)
 
 ---
@@ -76,5 +76,5 @@ Performance. The risk of a user seeing an "unread badge" reappear after a server
 
 ## References
 
-- **[Deep Dive 05: Read Status Updates](../deepdives/05-read-status-updates.md)**
+- **[Deep Dive 06: Read Status Updates](../deepdives/06-read-status-updates.md)**
   - Analysis of the write amplification problem.

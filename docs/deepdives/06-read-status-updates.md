@@ -52,37 +52,43 @@ Use a message queue (Kafka) to buffer write events before persisting to DB.
 | **Complexity** | 🟢 Low | 🟢 Low | 🟡 Medium | 🔴 High |
 | **Best For** | MVP | Ephemeral Data | **Unread Counts** | **Read Receipts** |
 
-## 4. Conclusion
+## 4. Experiment Results (Write-Behind Efficiency)
 
-We adopt a hybrid strategy based on data characteristics:
+### 4.1 Environment
+*   **Implementation**: `experiments/read-status-bench/`
+*   **Scenario**: Processing 5,000 read receipt updates.
+*   **Infrastructure**: Local PostgreSQL + Kafka (KRaft mode).
+*   **Optimizations**: 
+    *   **Kafka**: `acks: 1` (Leader only), Batch size = 500.
+    *   **DB**: Batch Insert size = 100.
 
-1.  **Unread Counts**: Use **Pattern C (Redis + Scheduled Sync)**.
-    *   Prioritize speed and deduplication (ZSET).
-    *   Accept minor snapshot loss during sync.
-    *   *See ADR-05, ADR-52.*
+### 4.2 Metrics
 
-2.  **Read Receipts**: Use **Pattern D (Kafka + Batch Consumer)**.
-    *   Prioritize durability and burst handling.
-    *   Use Kafka to decouple API write throughput from DB capacity.
-    *   *See ADR-06.*
+| Strategy | User Latency (API) | Effective Throughput | Consistency Lag |
+| :--- | :--- | :--- | :--- |
+| **Direct DB (Sync)** | ~2,399ms | 2,084 ops/s | **0ms (Instant)** |
+| **Kafka Buffer (Async)** | **111ms** | **45,225 ops/s** | **~3,241ms** |
 
-## 5. Related Topics
+### 4.3 Analysis
+1.  **UX Impact**: Using Kafka (Write-Behind) makes the API **~21x faster** for the end user. This is the difference between a "laggy" app and an "instant" app.
+2.  **Scalability**: The system capacity increased from 2k to 45k ops/sec. This allows the system to handle massive traffic spikes without crashing the primary database.
+3.  **The Trade-off**: The cost of this performance is a **~3 second delay** in data persistence (Consistency Lag). For read receipts, this is an acceptable trade-off as it does not affect the core messaging flow.
+4.  **Operational Note**: `acks=1` provides the optimal balance for read status—high performance with reliable delivery to the Kafka leader.
+
+## 5. Verdict & Roadmap
+*   **Unread Counts**: Use **Pattern C (Redis + Scheduled Sync)** via ZSET (`ADR-05`).
+*   **Read Receipts**: Use **Pattern D (Kafka + Batch Consumer)** for durability (`ADR-06`).
+*   **Next Step**: Implementation of Kafka Consumer with `RETRY` logic for DB failures.
+
+## 6. Related Topics
 
 *   **Massive Fan-out**: How to efficiently trigger the "Increment" event for 100k users.
     *   **→ See Deep Dive 03**
 *   **Redis Data Structures**: Why ZSET is used for counts.
     *   **→ See ADR-05**
 
-## 6. Architectural Decision Records
+## 7. Architectural Decision Records
 
 *   **ADR-05**: Redis ZSET for Unread Counts
-    *   Context: See § 2 (Data Structure)
-    *   Decision: Use Redis Sorted Sets for idempotent unread tracking.
-
 *   **ADR-52**: Eventual Consistency for Unread Counts
-    *   Context: See § 3 (Consistency Model)
-    *   Decision: Accept AP consistency model for unread counts.
-
 *   **ADR-06**: Async Persistence for Read Receipts
-    *   Context: See § 4 (Persistence Strategy)
-    *   Decision: Use Write-Behind pattern to protect DB from read spikes.

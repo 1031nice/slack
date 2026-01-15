@@ -6,7 +6,7 @@
 - **Date**: 2026-01-10
 - **Context**: v0.4 - Distributed Messaging Refinement
 - **Deciders**: Engineering Team
-- **Related Deep Dive**: [Deep Dive 05: Read Status Updates](../deepdives/05-read-status-updates.md)
+- **Related Deep Dive**: [Deep Dive 06: Read Status Updates](../deepdives/06-read-status-updates.md)
 - **Related ADR**: [ADR-52: Eventual Consistency for Unread Counts](./52-eventual-consistency-unread.md)
 
 ---
@@ -86,7 +86,7 @@ redisTemplate.opsForZSet().removeRangeByScore(key, 0, lastReadTimestamp);
 
 ## References
 
-- **[Deep Dive 05: Read Status Updates](../deepdives/05-read-status-updates.md)**
+- **[Deep Dive 06: Read Status Updates](../deepdives/06-read-status-updates.md)**
   - Detailed analysis of the "Write Amplification" problem.
 - **[Discord Engineering](https://discord.com/blog/how-discord-stores-billions-of-messages)**
   - Mentions similar state tracking challenges.

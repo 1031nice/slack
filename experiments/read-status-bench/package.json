@@ -1,0 +1,18 @@
+{
+  "name": "read-status-bench",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "ioredis": "^5.9.2",
+    "kafkajs": "^2.2.4",
+    "pg": "^8.17.1",
+    "testcontainers": "^11.11.0"
+  }
+}
