@@ -23,10 +23,23 @@ Technical investigations into systemic limits, edge cases, and architectural tra
 | :--- | :--- | :--- | :--- |
 | 01 | [Multi-Server Broadcasting](./01-multi-server-broadcasting.md) | Redis Pub/Sub, DB-first write path | ✅ Done |
 | 02 | [Consistency & Race Conditions](./02-db-redis-race-condition.md) | Full Payload vs ID-only, DB-commit race | ✅ Done |
-| 03 | [Massive Fan-out Architecture](./03-massive-fan-out.md) | Redis bandwidth limits, Tier 1-3 strategies | 🔄 In Progress |
-| 04 | [Gateway Separation](./04-gateway-separation.md) | MSA, gRPC vs REST, Stateful vs Stateless | 🆕 New |
-| 05 | [Causal Ordering Guarantees](./05-causal-ordering.md) | Snowflake IDs, Logical Clocks, Client buffering | ⏳ Pending |
-| 06 | [Read Status Updates](./06-read-status-updates.md) | Redis ZSet, Async read receipts, Unread counts | ⏳ Pending |
+| 03 | [Massive Fan-out Architecture](./03-massive-fan-out.md) | Redis bandwidth limits, Tier 1-3 strategies | ✅ Done |
+| 04 | [Gateway Separation](./04-gateway-separation.md) | MSA, gRPC vs REST, Stateful vs Stateless | ✅ Done |
+| 05 | [Causal Ordering Guarantees](./05-causal-ordering.md) | Snowflake IDs, Jitter, Clock Skew | ✅ Done |
+| 06 | [Read Status Updates](./06-read-status-updates.md) | Kafka Write-Behind, Batching efficiency | ✅ Done |
+
+### Future Roadmap (Architectural Expansion)
+
+| # | Topic | Key Focus | Status |
+| :--- | :--- | :--- | :--- |
+| 07 | [Distributed Presence](./07-distributed-presence.md) | Heartbeat storm, Redis Bitmap/HLL | 📋 Skeleton |
+| 08 | [Real-time Search](./08-realtime-search.md) | ES Indexing lag, CDC, Dual-read | 📋 Skeleton |
+| 09 | [Smart Notifications](./09-smart-notifications.md) | Suppression, Throttling, Redis Locks | 📋 Skeleton |
+| 10 | [Multi-Device Sync](./10-multi-device-sync.md) | Session routing, User-topic fan-out | 📋 Skeleton |
+| 11 | [Zero-Downtime Deployment](./11-zero-downtime-deployment.md) | Connection draining, Jitter reconnect | 📋 Skeleton |
+| 12 | [Global Architecture](./12-global-architecture.md) | Multi-region, Data sovereignty | 📋 Skeleton |
+| 13 | [Media Handling](./13-media-handling.md) | Resumable upload, CDN, Thumbnail Lambda | 📋 Skeleton |
+| 14 | [Security & Compliance](./14-security-compliance.md) | E2EE, Privacy vs Search, TTL Retention | 📋 Skeleton |
 
 ---
 

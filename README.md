@@ -19,8 +19,8 @@ Building a real-time messaging system. Learning distributed systems by breaking 
 
 ## Current Work
 
-- Deep dive: Fan-out consistency at 10k+ users
-- Next: Measure fan-out latency
+- **Completed**: Core Architecture (01-06) including gRPC Gateway, Snowflake Ordering, and Kafka Write-Behind.
+- **Next**: Distributed Presence System (07) - Handling 1M+ user heartbeat load.
 
 ## Method
 
