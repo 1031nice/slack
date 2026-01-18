@@ -62,6 +62,15 @@ public class ChannelService {
         return toResponse(channel, userId);
     }
 
+    /**
+     * Get all channels in a workspace that the user has access to.
+     *
+     * ARCHITECTURAL NOTE: This method has an N+1 query issue.
+     * For every channel, it performs a membership check and an unread count fetch.
+     * TODO: 
+     * 1. Use a single SQL query with JOINs to fetch accessible channels.
+     * 2. Use Redis Pipeline to fetch all unread counts in one RTT.
+     */
     public List<ChannelResponse> getWorkspaceChannels(Long workspaceId, Long userId) {
         // Authorization: must be workspace member to list channels
         permissionService.requireWorkspaceMember(userId, workspaceId);

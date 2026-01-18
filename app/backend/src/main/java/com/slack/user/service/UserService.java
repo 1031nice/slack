@@ -31,6 +31,7 @@ public class UserService {
 
     /**
      * Finds user by authUserId, throws exception if not found.
+     * TODO: Add caching (Caffeine or Redis) to avoid DB hits on every WebSocket message.
      */
     public User findByAuthUserId(String authUserId) {
         return userRepository.findByAuthUserId(authUserId)

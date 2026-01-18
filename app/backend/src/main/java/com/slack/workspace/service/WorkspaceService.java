@@ -67,6 +67,13 @@ public class WorkspaceService {
         return toResponse(workspace);
     }
 
+    /**
+     * Get all workspaces the user is a member of.
+     *
+     * ARCHITECTURAL NOTE: Real Slack users often belong to dozens of workspaces.
+     * TODO: Use a single SQL query with JOINs to fetch workspaces and basic metadata
+     * (like member counts) instead of mapping individual entities.
+     */
     public List<WorkspaceResponse> getUserWorkspaces(String authUserId) {
         User user = userService.findByAuthUserId(authUserId);
         List<WorkspaceMember> memberships = workspaceMemberRepository.findByUserId(user.getId());

@@ -29,6 +29,13 @@ public class WebSocketMessageService {
     /**
      * Processes incoming WebSocket message and broadcasts to channel.
      *
+     * ARCHITECTURAL NOTE: In a real distributed system (Slack), this "Logic" would not handle
+     * WebSocket connections directly.
+     * - Real Slack: Client -> [Gateway Server] -> gRPC Stream -> [Logic Server]
+     * - Current: Client -> [Monolith (Spring STOMP)] -> Logic
+     * We skipped implementing a separate Gateway server to reduce infra complexity,
+     * but simulating the split via "Deep Dive 04" logic.
+     *
      * @param message WebSocket message
      * @param authUserId Authenticated user's auth ID
      */
@@ -70,6 +77,12 @@ public class WebSocketMessageService {
 
     /**
      * Broadcasts message to all channel subscribers via Redis Pub/Sub.
+     *
+     * ARCHITECTURAL NOTE: Redis Pub/Sub has O(N) bandwidth cost for N subscribers.
+     * - Real Slack: Uses "Flannel" (Application-level Edge Cache) to multicast messages
+     *   directly to Gateway servers, bypassing Redis for payload transport.
+     * - Current: We use Redis Pub/Sub for simplicity (Tier 1 Architecture).
+     *   See Deep Dive 03 for the limits of this approach.
      */
     public void broadcastToChannel(WebSocketMessage message) {
         redisMessagePublisher.publish(message);

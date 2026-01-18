@@ -14,6 +14,12 @@ import org.springframework.stereotype.Service;
  * - That server assigns timestamps sequentially
  * - No clock skew issues (single authority per channel)
  * - Perfect ordering within channel (100% guaranteed)
+ *
+ * ARCHITECTURAL NOTE:
+ * This implementation relies on "Channel Partitioning" logic (Sticky Routing) to ensure
+ * a single writer per channel. If we move to a fully distributed Snowflake model (ADR-03),
+ * we must add a `Machine ID` (Worker ID) to the ID structure to prevent collisions
+ * across multiple servers. Currently, we assume `synchronized` is sufficient per node.
  */
 @Slf4j
 @Service

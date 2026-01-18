@@ -50,6 +50,12 @@ public class PermissionService {
      * - PUBLIC channels: must be workspace member
      * - PRIVATE channels: must be channel member
      * Throws AccessDeniedException if not.
+     *
+     * ARCHITECTURAL NOTE: This method is called on almost every API and WebSocket event.
+     * Performing a DB lookup for channel metadata every time is extremely expensive.
+     *
+     * TODO: Use a high-performance cache (e.g., Redis or Caffeine) to store channel
+     * metadata (ID, Type, WorkspaceID) which rarely changes.
      */
     public void requireChannelAccess(Long userId, Long channelId) {
         Channel channel = channelRepository.findById(channelId)

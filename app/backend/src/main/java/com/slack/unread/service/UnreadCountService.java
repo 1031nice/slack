@@ -52,11 +52,20 @@ public class UnreadCountService {
      * Add unread message for all channel members except the sender.
      * Uses Redis Pipeline to batch operations and reduce network round trips.
      *
-     * For PUBLIC channels: includes all workspace members
-     * For PRIVATE channels: includes only ChannelMember entries
+     * ARCHITECTURAL NOTE: This is a major scalability bottleneck.
+     * - For a workspace with 100k members, fetching all IDs from DB will OOM.
+     * - Real Slack: Uses a fan-out worker (Sidekiq/Kafka) to update counters in chunks.
+     * - Real Slack: Maintains channel membership in Redis (Set) for O(1) retrieval.
      *
-     * Performance: O(N) where N = number of channel members
-     * Network calls: 1 (pipelined) instead of N (individual)
+     * TODO: 
+     * 1. Change this to @Async or use a Message Queue.
+     * 2. Implement chunked updates if member list exceeds 1000.
+     * 3. Cache channel membership in Redis to avoid DB hits.
+     *
+     * @param channelId channel ID
+     * @param messageId message ID
+     * @param senderId sender ID
+     * @param timestamp message timestamp
      */
     public void incrementUnreadCount(Long channelId, Long messageId, Long senderId, long timestamp) {
         Channel channel = channelRepository.findById(channelId).orElse(null);

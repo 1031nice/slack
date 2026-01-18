@@ -78,6 +78,11 @@ public class MessageService {
         Message saved = messageRepository.save(message);
 
         long timestamp = saved.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        
+        // ARCHITECTURAL NOTE: Unread Count Increment
+        // In this Monolith, we call the service synchronously.
+        // In Real Slack (Deep Dive 06), this would be an async event (Kafka/Sidekiq)
+        // to avoid blocking the "Send Message" transaction with fan-out updates.
         unreadCountService.incrementUnreadCount(channelId, saved.getId(), user.getId(), timestamp);
         mentionService.createMentions(saved);
 

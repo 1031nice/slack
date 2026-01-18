@@ -62,6 +62,11 @@ public class MentionService {
      * Create mention notifications for a message
      * Finds users by name (case-insensitive) and creates Mention entities
      *
+     * ARCHITECTURAL NOTE: In Real Slack, mention parsing and notification delivery
+     * are decoupled from the core message ingestion path.
+     * TODO: Move this to an @Async method or an Event Listener to avoid blocking
+     * the primary "Send Message" transaction.
+     *
      * @param message Message that contains mentions
      * @return List of created Mention entities
      */

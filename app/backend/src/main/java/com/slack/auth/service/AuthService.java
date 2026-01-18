@@ -30,6 +30,10 @@ public class AuthService {
 
     /**
      * Exchanges authorization code for access token (OAuth2 Authorization Code Flow).
+     *
+     * ARCHITECTURAL NOTE: This is a synchronous network call to an external service.
+     * TODO: Implement a Circuit Breaker (e.g., Resilience4j) to prevent cascading failures
+     * if the Auth Server is down or slow.
      */
     public LoginResponse exchangeToken(String code, String redirectUri) {
         try {

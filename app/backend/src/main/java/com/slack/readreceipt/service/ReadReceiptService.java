@@ -214,6 +214,12 @@ public class ReadReceiptService {
      * Uses fallback queue for resilience against Kafka failures
      * Kafka consumer will batch process events and persist to DB
      *
+     * ARCHITECTURAL NOTE: This method is part of the "Write-Behind" pattern (ADR-06).
+     * - We don't wait for DB commit here.
+     * - If Kafka fails, we fallback to memory queue (circuit breaker).
+     * - In a real Microservice, this fallback queue should be persistent (e.g., local disk queue)
+     *   to survive pod restarts, but memory queue is acceptable for this prototype.
+     *
      * @param userId            User ID
      * @param channelId         Channel ID
      * @param lastReadTimestamp Last read timestamp
