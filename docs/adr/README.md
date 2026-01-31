@@ -14,6 +14,9 @@ The fundamental design decisions that shape the system's backbone.
 | [0004](./04-event-driven-architecture.md) | **Event-Driven Architecture** | Accepted | 2026-01-10 |
 | [0005](./05-redis-zset-unread-counts.md) | **Redis ZSET for Unread Counts** | Accepted | 2026-01-10 |
 | [0006](./06-async-read-receipts.md) | **Async Read Receipts** | Accepted | 2026-01-10 |
+| [0007](./07-redis-zset-presence.md) | **Redis ZSET for Presence** | Accepted | 2026-01-16 |
+| [0008](./08-elasticsearch-cdc-search.md) | **ElasticSearch with CDC for Search** | Proposed | 2026-01-31 |
+| [0009](./09-gateway-grpc-streaming.md) | **Gateway gRPC Streaming** | Accepted | 2026-01-10 |
 
 ## Implementation Details (50 - 99)
 Specific implementation strategies, optimizations, and security patterns.

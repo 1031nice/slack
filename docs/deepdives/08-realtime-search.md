@@ -360,4 +360,4 @@ Based on industry benchmarks (ElasticSearch 8.x, 3-node cluster):
 
 ## 10. Architectural Decision Records
 
-*   **ADR-08**: ElasticSearch with CDC for Full-Text Search (Proposed)
+*   **[ADR-08: ElasticSearch with CDC for Full-Text Search](../adr/08-elasticsearch-cdc-search.md)** ✅
